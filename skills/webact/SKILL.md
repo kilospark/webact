@@ -74,6 +74,8 @@ node <base-dir>/webact.js dom
 | `tab <id>` | `node webact.js tab ABC123` |
 | `newtab [url]` | `node webact.js newtab https://example.com` |
 | `close` | `node webact.js close` |
+| `activate` | `node webact.js activate` |
+| `minimize` | `node webact.js minimize` |
 
 **`type` vs `keyboard`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor.
 
@@ -133,7 +135,7 @@ When given a goal, follow this loop:
 
 3. **Report actual content.** When the goal is information retrieval, extract and present the actual text from the page. Do not summarize what you think is there - show what IS there.
 
-4. **Stop when blocked.** If you encounter a login wall, CAPTCHA, 2FA prompt, or cookie consent that blocks progress, tell the user. Do not guess credentials or attempt to bypass security.
+4. **Stop when blocked.** If you encounter a login wall, CAPTCHA, 2FA prompt, or cookie consent that blocks progress, first run `activate` to bring the browser window to the front so the user can see it, then tell the user. Do not guess credentials or attempt to bypass security.
 
 5. **Wait for dynamic content.** After clicks that trigger page loads, use `waitfornav` or `waitfor <selector>` before reading DOM.
 
@@ -150,7 +152,7 @@ node <base-dir>/webact.js launch
 #         Command file: /tmp/webact-command-a1b2c3d4.json  (path varies by OS)
 ```
 
-If Chrome is not running, `launch` starts a new instance automatically. All subsequent commands auto-discover the session.
+If Chrome is not running, `launch` starts a new instance automatically and minimizes it (macOS). All subsequent commands auto-discover the session. Use `activate` to bring the browser window to the front when needed.
 
 ## Token Efficiency
 

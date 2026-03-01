@@ -538,6 +538,23 @@ function findBrowser() {
   return null;
 }
 
+function minimizeBrowser(browserName) {
+  if (process.platform !== 'darwin') return;
+  try {
+    execSync(`osascript -e 'tell application "${browserName}" to set miniaturized of every window to true'`, { stdio: 'ignore' });
+  } catch {}
+}
+
+function activateBrowser(browserName) {
+  if (process.platform !== 'darwin') return;
+  try {
+    execSync(`osascript -e 'tell application "${browserName}" to activate' -e 'tell application "${browserName}" to set miniaturized of window 1 to false'`, { stdio: 'ignore' });
+  } catch {}
+}
+
+// Module-level variable to pass browser name from cmdLaunch to cmdConnect
+let launchBrowserName = null;
+
 async function cmdLaunch() {
   const userDataDir = path.join(TMP, 'webact-chrome-profile');
   const portFile = path.join(userDataDir, '.webact-port');
@@ -552,6 +569,8 @@ async function cmdLaunch() {
     if (savedPort) {
       CDP_PORT = savedPort;
       await getDebugTabs();
+      // Try to determine browser name for session state
+      launchBrowserName = findBrowser()?.name || null;
       console.log(`Browser already running.`);
       return cmdConnect();
     }
@@ -574,6 +593,7 @@ async function cmdLaunch() {
     console.error('Or set CHROME_PATH to the browser executable.');
     process.exit(1);
   }
+  launchBrowserName = browser.name;
 
   let launchDataDir = userDataDir;
   const isWindowsBrowser = IS_WSL && browser.path.startsWith('/mnt/');
@@ -613,6 +633,7 @@ async function cmdLaunch() {
       // Save the port so future launches can find this Chrome instance
       fs.writeFileSync(portFile, String(CDP_PORT));
       console.log(`${browser.name} launched successfully.`);
+      minimizeBrowser(browser.name);
       return cmdConnect();
     } catch {}
   }
@@ -632,6 +653,7 @@ async function cmdConnect() {
     tabs: [newTab.id],
     port: CDP_PORT,
     host: CDP_HOST,
+    browserName: launchBrowserName,
   };
   saveSessionState(state);
 
@@ -2064,6 +2086,22 @@ async function cmdDownload(action, ...args) {
   }
 }
 
+async function cmdActivate() {
+  const state = loadSessionState();
+  const browserName = state.browserName || findBrowser()?.name;
+  if (!browserName) { console.error('Cannot determine browser.'); return; }
+  activateBrowser(browserName);
+  console.log(`Brought ${browserName} to front.`);
+}
+
+async function cmdMinimize() {
+  const state = loadSessionState();
+  const browserName = state.browserName || findBrowser()?.name;
+  if (!browserName) { console.error('Cannot determine browser.'); return; }
+  minimizeBrowser(browserName);
+  console.log(`Minimized ${browserName}.`);
+}
+
 // --- Command dispatch ---
 
 async function dispatch(command, args) {
@@ -2123,6 +2161,8 @@ async function dispatch(command, args) {
     case 'frames': await cmdFrames(); break;
     case 'frame': await cmdFrame(args[0]); break;
     case 'download': await cmdDownload(args[0], ...args.slice(1)); break;
+    case 'activate': await cmdActivate(); break;
+    case 'minimize': await cmdMinimize(); break;
     default:
       console.error(`Unknown command: ${command}`);
       process.exit(1);
@@ -2177,7 +2217,9 @@ Commands:
   tabs                List this session's tabs
   tab <id>            Switch to a session-owned tab
   newtab [url]        Open a new tab in this session
-  close               Close current tab`);
+  close               Close current tab
+  activate            Bring browser window to front (macOS)
+  minimize            Minimize browser window (macOS)`);
     process.exit(0);
   }
 
