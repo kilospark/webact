@@ -1,7 +1,7 @@
 {
   "name": "webact",
   "owner": {
-    "name": "kxbnb"
+    "name": "kilospark"
   },
   "metadata": {
     "description": "Browser automation via Chrome DevTools Protocol for Claude Code",
@@ -14,7 +14,7 @@
       "version": "2.6.0",
       "source": {
         "source": "github",
-        "repo": "kxbnb/webact"
+        "repo": "kilospark/webact"
       }
     }
   ]

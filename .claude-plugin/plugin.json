@@ -3,10 +3,10 @@
   "description": "Control Chrome via raw CDP - browse the web, interact with pages, accomplish goals through a perceive-act loop",
   "version": "2.6.0",
   "author": {
-    "name": "kxbnb"
+    "name": "kilospark"
   },
-  "homepage": "https://github.com/kxbnb/webact",
-  "repository": "https://github.com/kxbnb/webact",
+  "homepage": "https://github.com/kilospark/webact",
+  "repository": "https://github.com/kilospark/webact",
   "license": "MIT",
   "keywords": ["chrome", "cdp", "browser", "web", "automation", "webact"]
 }

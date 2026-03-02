@@ -6,18 +6,10 @@ No Playwright, no MCP, no browser automation frameworks. Raw CDP over WebSocket.
 
 ## Install
 
-First, install the CLI:
-
-```bash
-npm install -g @kilospark/webact
-```
-
-Then register the skill with your agent:
-
 ### All agents (Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more)
 
 ```bash
-npx skills add kxbnb/webact
+npx skills add kilospark/webact
 ```
 
 Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
@@ -27,14 +19,14 @@ Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
 ### Claude Code
 
 ```
-/plugin marketplace add kxbnb/webact
+/plugin marketplace add kilospark/webact
 /plugin install webact@webact
 ```
 
 ### Manual
 
 ```bash
-git clone https://github.com/kxbnb/webact.git /tmp/webact
+git clone https://github.com/kilospark/webact.git /tmp/webact
 cp -r /tmp/webact/skills/webact .agents/skills/webact
 ```
 

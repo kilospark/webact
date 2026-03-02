@@ -28,7 +28,7 @@
   "type": "commonjs",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kxbnb/webact.git",
+    "url": "https://github.com/kilospark/webact.git",
     "directory": "skills/webact"
   },
   "engines": {
