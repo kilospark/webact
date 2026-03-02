@@ -1047,6 +1047,34 @@ async function cmdKeyboard(text) {
   });
 }
 
+async function cmdPaste(text) {
+  if (!text) { console.error('Usage: webact.js paste <text>'); process.exit(1); }
+
+  await withCDP(async (cdp) => {
+    const result = await cdp.send('Runtime.evaluate', {
+      expression: `
+        (function() {
+          const el = document.activeElement;
+          if (!el) return { error: 'No active element to paste into' };
+          const dt = new DataTransfer();
+          dt.setData('text/plain', ${JSON.stringify(text)});
+          const evt = new ClipboardEvent('paste', {
+            clipboardData: dt,
+            bubbles: true,
+            cancelable: true,
+          });
+          el.dispatchEvent(evt);
+          return { ok: true };
+        })()
+      `,
+      returnByValue: true,
+    });
+    const val = result.result.value;
+    if (val && val.error) { console.error(val.error); process.exit(1); }
+    console.log(`OK pasted "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+  });
+}
+
 async function cmdWaitFor(selector, timeoutMs) {
   if (!selector) { console.error('Usage: webact.js waitfor <selector> [timeout_ms]'); process.exit(1); }
   const timeout = parseInt(timeoutMs, 10) || 5000;
@@ -1199,29 +1227,61 @@ async function cmdPress(key) {
   });
 }
 
-async function cmdScroll(target, amount) {
-  if (!target) { console.error('Usage: webact.js scroll <up|down|top|bottom|selector> [pixels]'); process.exit(1); }
+async function cmdScroll(args) {
+  if (!args.length) { console.error('Usage: webact.js scroll <up|down|top|bottom|selector> [pixels]\n       webact.js scroll <selector> <up|down|top|bottom> [pixels]'); process.exit(1); }
 
-  const lower = target.toLowerCase();
+  const directions = ['up', 'down', 'top', 'bottom'];
+  const first = args[0];
+  const lower = first.toLowerCase();
+
+  // Detect element-scoped scroll: scroll <selector> <direction> [px]
+  const secondIsDirection = args[1] && directions.includes(args[1].toLowerCase());
+  const firstIsDirection = directions.includes(lower);
 
   await withCDP(async (cdp) => {
-    if (lower === 'top') {
-      await cdp.send('Runtime.evaluate', { expression: 'window.scrollTo(0, 0)' });
-    } else if (lower === 'bottom') {
-      await cdp.send('Runtime.evaluate', { expression: 'window.scrollTo(0, document.body.scrollHeight)' });
-    } else if (lower === 'up' || lower === 'down') {
-      const pixels = parseInt(amount, 10) || 400;
-      const deltaY = lower === 'up' ? -pixels : pixels;
-      await cdp.send('Input.dispatchMouseEvent', {
-        type: 'mouseWheel', x: 200, y: 200, deltaX: 0, deltaY,
+    if (firstIsDirection) {
+      // Page-level scroll
+      if (lower === 'top') {
+        await cdp.send('Runtime.evaluate', { expression: 'window.scrollTo(0, 0)' });
+      } else if (lower === 'bottom') {
+        await cdp.send('Runtime.evaluate', { expression: 'window.scrollTo(0, document.body.scrollHeight)' });
+      } else {
+        const pixels = parseInt(args[1], 10) || 400;
+        const deltaY = lower === 'up' ? -pixels : pixels;
+        await cdp.send('Input.dispatchMouseEvent', {
+          type: 'mouseWheel', x: 200, y: 200, deltaX: 0, deltaY,
+        });
+      }
+    } else if (secondIsDirection) {
+      // Element-scoped scroll: scroll <selector> <direction> [px]
+      const selector = first;
+      const dir = args[1].toLowerCase();
+      const pixels = parseInt(args[2], 10) || 400;
+      const result = await cdp.send('Runtime.evaluate', {
+        expression: `
+          (function() {
+            const el = document.querySelector(${JSON.stringify(selector)});
+            if (!el) return { error: 'Element not found' };
+            const dir = ${JSON.stringify(dir)};
+            const pixels = ${pixels};
+            if (dir === 'top') el.scrollTop = 0;
+            else if (dir === 'bottom') el.scrollTop = el.scrollHeight;
+            else el.scrollBy(0, dir === 'up' ? -pixels : pixels);
+            return { tag: el.tagName.toLowerCase(), dir };
+          })()
+        `,
+        returnByValue: true,
       });
+      const val = result.result.value;
+      if (val && val.error) { console.error(val.error); process.exit(1); }
+      console.log(`Scrolled ${val.dir} within ${val.tag} ${selector}`);
     } else {
       // Treat as CSS selector — scroll element into view
       const result = await cdp.send('Runtime.evaluate', {
         expression: `
           (function() {
-            const el = document.querySelector(${JSON.stringify(target)});
-            if (!el) return { error: 'Element not found: ${target}' };
+            const el = document.querySelector(${JSON.stringify(first)});
+            if (!el) return { error: 'Element not found: ' + ${JSON.stringify(first)} };
             el.scrollIntoView({ block: 'center', behavior: 'smooth' });
             return { tag: el.tagName.toLowerCase() };
           })()
@@ -1229,8 +1289,8 @@ async function cmdScroll(target, amount) {
         returnByValue: true,
       });
       const val = result.result.value;
-      if (val.error) { console.error(val.error); process.exit(1); }
-      console.log(`Scrolled to ${val.tag} ${target}`);
+      if (val && val.error) { console.error(val.error); process.exit(1); }
+      console.log(`Scrolled to ${val.tag} ${first}`);
     }
     await new Promise(r => setTimeout(r, 100));
     console.log(await getPageBrief(cdp));
@@ -2128,6 +2188,7 @@ async function dispatch(command, args) {
       break;
     }
     case 'keyboard': await cmdKeyboard(args.join(' ')); break;
+    case 'paste': await cmdPaste(args.join(' ')); break;
     case 'select': await cmdSelect(resolveSelector(args[0]), ...args.slice(1)); break;
     case 'upload': await cmdUpload(resolveSelector(args[0]), ...args.slice(1)); break;
     case 'drag': await cmdDrag(resolveSelector(args[0]), resolveSelector(args[1])); break;
@@ -2135,7 +2196,7 @@ async function dispatch(command, args) {
     case 'waitfor': await cmdWaitFor(resolveSelector(args[0]), args[1]); break;
     case 'waitfornav': await cmdWaitForNavigation(args[0]); break;
     case 'press': await cmdPress(args[0]); break;
-    case 'scroll': await cmdScroll(args[0], args[1]); break;
+    case 'scroll': await cmdScroll(args); break;
     case 'eval': await cmdEval(args.join(' ')); break;
     case 'tabs': await cmdTabs(); break;
     case 'tab': await cmdTab(args[0]); break;
@@ -2197,6 +2258,7 @@ Commands:
   clear <selector>    Clear an input field or contenteditable
   type <sel> <text>   Type text into element (focuses selector first)
   keyboard <text>     Type text at current caret position (no selector)
+  paste <text>        Paste text via ClipboardEvent (for rich editors)
   select <sel> <val>  Select option(s) from a <select> by value or label
   upload <sel> <file> Upload file(s) to a file input
   drag <from> <to>    Drag from one element to another
@@ -2205,6 +2267,7 @@ Commands:
   waitfornav [ms]     Wait for page navigation to complete (default 10000ms)
   press <key>         Press a key or combo (Enter, Ctrl+A, Meta+C, etc.)
   scroll <target> [px] Scroll: up, down, top, bottom, or CSS selector [pixels]
+  scroll <sel> <dir> [px] Scroll within element: up, down, top, bottom [pixels]
   eval <js>           Evaluate JavaScript
   cookies [get|set|clear|delete]  Manage browser cookies
   console [show|errors|listen]    View console output or JS errors

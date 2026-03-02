@@ -54,6 +54,7 @@ webact dom
 | `clear <selector>` | `webact clear input[name=q]` |
 | `type <selector> <text>` | `webact type input[name=q] search query` |
 | `keyboard <text>` | `webact keyboard hello world` |
+| `paste <text>` | `webact paste Hello world` |
 | `select <selector> <value>` | `webact select select#country US` |
 | `upload <selector> <file>` | `webact upload input[type=file] /tmp/photo.png` |
 | `drag <from> <to>` | `webact drag .card .dropzone` |
@@ -77,7 +78,7 @@ webact dom
 | `activate` | `webact activate` |
 | `minimize` | `webact minimize` |
 
-**`type` vs `keyboard`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor.
+**`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
 
 **`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. No manual waits needed for dynamic elements.
 
@@ -93,7 +94,9 @@ webact dom
 
 **`press` combos:** Supports modifier keys: `Ctrl+A` (select all), `Ctrl+C` (copy), `Meta+V` (paste on Mac), `Shift+Enter`, etc. Modifiers: Ctrl, Alt, Shift, Meta/Cmd.
 
-**`scroll` targets:** `up`/`down` (default 400px, or specify pixels), `top`/`bottom`, or a CSS selector to scroll an element into view.
+**Mac keyboard note:** On macOS, app shortcuts documented as `Ctrl+Alt+<key>` (e.g., Google Docs heading shortcuts `Ctrl+Alt+1` through `Ctrl+Alt+6`) must be sent as `Meta+Alt+<key>` through CDP. Mac's Ctrl key is not the Command key these apps expect. Example: `press Meta+Alt+2` for Heading 2 in Google Docs.
+
+**`scroll` targets:** `up`/`down` (default 400px, or specify pixels), `top`/`bottom`, or a CSS selector to scroll an element into view. **Element-scoped:** `scroll <selector> <up|down|top|bottom> [px]` scrolls within a container element instead of the page — essential for apps with custom scroll containers (Google Docs, Slack).
 
 **`block` patterns:** Block resource types (`images`, `css`, `fonts`, `media`, `scripts`) or URL substrings. Speeds up page loads. Use `block off` to disable.
 
@@ -207,3 +210,24 @@ webact waitfor [data-qa='tab_complete_ui_item'] 5000
 webact click [data-qa='tab_complete_ui_item']
 webact keyboard " check this out"
 ```
+
+## Complex Web Apps
+
+Some apps have non-standard DOMs that require specific approaches.
+
+**Google Docs:**
+- Use `keyboard` (not `type`) — Google Docs has a custom editor, not standard inputs
+- Use `paste` for inserting blocks of text — faster and more reliable than `keyboard` for multi-line content
+- Heading shortcuts: `press Meta+Alt+1` through `press Meta+Alt+6` (NOT `Ctrl+Alt` — see Mac keyboard note above)
+- Scrolling: Use `scroll .kix-appview-editor down 500` — page-level scroll doesn't reach the document content
+
+**Slack:**
+- Message composition: Click the message input, then use `keyboard` to type
+- Message extraction: Use `eval` to query Slack's virtual DOM — standard CSS selectors are unreliable due to virtual scrolling
+- Example: `eval [...document.querySelectorAll('[data-qa="virtual-list-item"]')].map(el => el.textContent).join('\n')`
+
+**General rich editors (Notion, Quill, ProseMirror, etc.):**
+- Prefer `paste` over `keyboard` for multi-line text — many editors handle paste events specially
+- Use `keyboard` for short inline text and @mentions
+- Use `eval` when you need to extract content from editors with virtual rendering
+- If `paste` doesn't work for a specific app, fall back to `eval` with a custom ClipboardEvent
