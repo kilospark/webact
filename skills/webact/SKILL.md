@@ -9,12 +9,12 @@ Control Chrome directly via the Chrome DevTools Protocol. No Playwright, no MCP 
 
 ## How to Run Commands
 
-All commands use `webact.js` from this skill's base directory. The base directory is provided when the skill loads - use it as the path prefix.
+All commands use the `webact` CLI. First, check if `webact` is on PATH by running `which webact`. If found, use `webact` directly. If not, fall back to `node <base-dir>/webact.js` where `<base-dir>` is this skill's base directory.
 
 ### Session Setup (once)
 
 ```bash
-node <base-dir>/webact.js launch
+webact launch
 ```
 
 This launches Chrome (or connects to an existing instance) and creates a session. All subsequent commands auto-discover the session - no session ID needed.
@@ -24,11 +24,11 @@ This launches Chrome (or connects to an existing instance) and creates a session
 Use direct CLI commands. Each is a single bash call:
 
 ```bash
-node <base-dir>/webact.js navigate https://example.com
-node <base-dir>/webact.js click button.submit
-node <base-dir>/webact.js keyboard "hello world"
-node <base-dir>/webact.js press Enter
-node <base-dir>/webact.js dom
+webact navigate https://example.com
+webact click button.submit
+webact keyboard "hello world"
+webact press Enter
+webact dom
 ```
 
 **Auto-brief:** State-changing commands (navigate, click, hover, press Enter/Tab, scroll, select, waitfor) auto-print a compact page summary showing URL, title, inputs, buttons, links, and total element counts. You usually don't need a separate `dom` call. Use `dom` only when you need the full page structure, `axtree -i` for a quick list of all interactive elements, or `axtree` for the full semantic tree.
@@ -37,45 +37,45 @@ node <base-dir>/webact.js dom
 
 | Command | Example |
 |---------|---------|
-| `navigate <url>` | `node webact.js navigate https://example.com` |
-| `back` | `node webact.js back` |
-| `forward` | `node webact.js forward` |
-| `reload` | `node webact.js reload` |
-| `dom [selector] [--full]` | `node webact.js dom` or `node webact.js dom .results` |
-| `axtree [selector] [-i]` | `node webact.js axtree` or `node webact.js axtree -i` |
-| `observe` | `node webact.js observe` |
-| `screenshot` | `node webact.js screenshot` |
-| `pdf [path]` | `node webact.js pdf` or `node webact.js pdf /tmp/page.pdf` |
-| `click <selector>` | `node webact.js click button.submit` |
-| `doubleclick <selector>` | `node webact.js doubleclick td.cell` |
-| `rightclick <selector>` | `node webact.js rightclick .context-target` |
-| `hover <selector>` | `node webact.js hover .menu-trigger` |
-| `focus <selector>` | `node webact.js focus input[name=q]` |
-| `clear <selector>` | `node webact.js clear input[name=q]` |
-| `type <selector> <text>` | `node webact.js type input[name=q] search query` |
-| `keyboard <text>` | `node webact.js keyboard hello world` |
-| `select <selector> <value>` | `node webact.js select select#country US` |
-| `upload <selector> <file>` | `node webact.js upload input[type=file] /tmp/photo.png` |
-| `drag <from> <to>` | `node webact.js drag .card .dropzone` |
-| `dialog <accept\|dismiss> [text]` | `node webact.js dialog accept` |
-| `waitfor <selector> [ms]` | `node webact.js waitfor .dropdown 5000` |
-| `waitfornav [ms]` | `node webact.js waitfornav` |
-| `press <key\|combo>` | `node webact.js press Enter` or `node webact.js press Ctrl+A` |
-| `scroll <target> [px]` | `node webact.js scroll down 500` or `node webact.js scroll top` |
-| `eval <js>` | `node webact.js eval document.title` |
-| `cookies [get\|set\|clear\|delete]` | `node webact.js cookies` or `node webact.js cookies set name val` |
-| `console [show\|errors\|listen]` | `node webact.js console` or `node webact.js console errors` |
-| `block <pattern>` | `node webact.js block images css` or `node webact.js block off` |
-| `viewport <w> <h>` | `node webact.js viewport mobile` or `node webact.js viewport 1024 768` |
-| `frames` | `node webact.js frames` |
-| `frame <id\|selector>` | `node webact.js frame main` or `node webact.js frame iframe#embed` |
-| `download [path\|list]` | `node webact.js download path /tmp/dl` or `node webact.js download list` |
-| `tabs` | `node webact.js tabs` |
-| `tab <id>` | `node webact.js tab ABC123` |
-| `newtab [url]` | `node webact.js newtab https://example.com` |
-| `close` | `node webact.js close` |
-| `activate` | `node webact.js activate` |
-| `minimize` | `node webact.js minimize` |
+| `navigate <url>` | `webact navigate https://example.com` |
+| `back` | `webact back` |
+| `forward` | `webact forward` |
+| `reload` | `webact reload` |
+| `dom [selector] [--full]` | `webact dom` or `webact dom .results` |
+| `axtree [selector] [-i]` | `webact axtree` or `webact axtree -i` |
+| `observe` | `webact observe` |
+| `screenshot` | `webact screenshot` |
+| `pdf [path]` | `webact pdf` or `webact pdf /tmp/page.pdf` |
+| `click <selector>` | `webact click button.submit` |
+| `doubleclick <selector>` | `webact doubleclick td.cell` |
+| `rightclick <selector>` | `webact rightclick .context-target` |
+| `hover <selector>` | `webact hover .menu-trigger` |
+| `focus <selector>` | `webact focus input[name=q]` |
+| `clear <selector>` | `webact clear input[name=q]` |
+| `type <selector> <text>` | `webact type input[name=q] search query` |
+| `keyboard <text>` | `webact keyboard hello world` |
+| `select <selector> <value>` | `webact select select#country US` |
+| `upload <selector> <file>` | `webact upload input[type=file] /tmp/photo.png` |
+| `drag <from> <to>` | `webact drag .card .dropzone` |
+| `dialog <accept\|dismiss> [text]` | `webact dialog accept` |
+| `waitfor <selector> [ms]` | `webact waitfor .dropdown 5000` |
+| `waitfornav [ms]` | `webact waitfornav` |
+| `press <key\|combo>` | `webact press Enter` or `webact press Ctrl+A` |
+| `scroll <target> [px]` | `webact scroll down 500` or `webact scroll top` |
+| `eval <js>` | `webact eval document.title` |
+| `cookies [get\|set\|clear\|delete]` | `webact cookies` or `webact cookies set name val` |
+| `console [show\|errors\|listen]` | `webact console` or `webact console errors` |
+| `block <pattern>` | `webact block images css` or `webact block off` |
+| `viewport <w> <h>` | `webact viewport mobile` or `webact viewport 1024 768` |
+| `frames` | `webact frames` |
+| `frame <id\|selector>` | `webact frame main` or `webact frame iframe#embed` |
+| `download [path\|list]` | `webact download path /tmp/dl` or `webact download list` |
+| `tabs` | `webact tabs` |
+| `tab <id>` | `webact tab ABC123` |
+| `newtab [url]` | `webact newtab https://example.com` |
+| `close` | `webact close` |
+| `activate` | `webact activate` |
+| `minimize` | `webact minimize` |
 
 **`type` vs `keyboard`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor.
 
@@ -119,7 +119,7 @@ When given a goal, follow this loop:
 
 1. **PLAN** - Break the goal into steps. Chain predictable sequences (click → type → press Enter) into a single command array.
 
-2. **ACT** - Write command JSON (or array), run `node <base-dir>/webact.js run <sessionId>`. Actions auto-print a page brief.
+2. **ACT** - Write command JSON (or array), run `webact run <sessionId>`. Actions auto-print a page brief.
 
 3. **DECIDE** - Read the brief. Expected state? Continue. Login wall / CAPTCHA? Tell user. Need more detail? Use `dom`. Goal complete? Report.
 
@@ -149,7 +149,7 @@ When given a goal, follow this loop:
 
 ```bash
 # Launch Chrome and get a session ID
-node <base-dir>/webact.js launch
+webact launch
 # Output: Session: a1b2c3d4
 #         Command file: /tmp/webact-command-a1b2c3d4.json  (path varies by OS)
 ```
@@ -180,30 +180,30 @@ Read the DOM output and identify elements by:
 
 If a CSS selector doesn't work, use `eval` to find elements by text content:
 ```bash
-node webact.js eval "[...document.querySelectorAll('a')].find(a => a.textContent.includes('Sign in'))?.getAttribute('href')"
+webact eval "[...document.querySelectorAll('a')].find(a => a.textContent.includes('Sign in'))?.getAttribute('href')"
 ```
 
 ## Common Patterns
 
-All examples assume you've already run `node webact.js launch`.
+All examples assume you've already run `webact launch`.
 
 **Navigate and read** (navigate auto-prints brief - no separate dom needed):
 ```bash
-node webact.js navigate https://news.ycombinator.com
+webact navigate https://news.ycombinator.com
 ```
 
 **Fill a form:**
 ```bash
-node webact.js click input[name=q]
-node webact.js type input[name=q] search query
-node webact.js press Enter
+webact click input[name=q]
+webact type input[name=q] search query
+webact press Enter
 ```
 
 **Rich text editors and @mentions:**
 ```bash
-node webact.js click .ql-editor
-node webact.js keyboard Hello @alice
-node webact.js waitfor [data-qa='tab_complete_ui_item'] 5000
-node webact.js click [data-qa='tab_complete_ui_item']
-node webact.js keyboard " check this out"
+webact click .ql-editor
+webact keyboard Hello @alice
+webact waitfor [data-qa='tab_complete_ui_item'] 5000
+webact click [data-qa='tab_complete_ui_item']
+webact keyboard " check this out"
 ```

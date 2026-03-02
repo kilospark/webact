@@ -6,28 +6,29 @@ No Playwright, no MCP, no browser automation frameworks. Raw CDP over WebSocket.
 
 ## Install
 
+First, install the CLI:
+
+```bash
+npm install -g @kilospark/webact
+```
+
+Then register the skill with your agent:
+
 ### All agents (Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more)
 
 ```bash
 npx skills add kxbnb/webact
 ```
 
-Auto-detects your agent and installs the skill to the right directory. Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
+Powered by Vercel's [skills](https://github.com/vercel-labs/skills) CLI.
 
 > **Note (Codex):** Codex's sandbox blocks local networking by default. To allow CDP connections, add a rule to allow `node` access to `localhost` on the CDP port (auto-discovered at launch), or run with `--full-auto` mode.
 
 ### Claude Code
 
-From inside Claude Code:
 ```
 /plugin marketplace add kxbnb/webact
 /plugin install webact@webact
-```
-
-Or from the command line:
-```bash
-claude plugin marketplace add kxbnb/webact
-claude plugin install webact@webact
 ```
 
 ### Manual
@@ -71,66 +72,66 @@ Each agent invocation gets its own **session** with isolated tab tracking. On `l
 - Each session only sees and controls its own tabs
 - Commands are passed via a JSON file, so the bash command stays the same throughout a session (only needs one user approval)
 
-## CLI helper
+## CLI
 
-The skill includes `webact.js`, a CLI wrapper around CDP:
+The `webact` CLI wraps CDP:
 
 ```bash
-node webact.js launch                  # Start browser, create session
-node webact.js navigate <url>          # Go to a URL
-node webact.js back                    # Go back in history
-node webact.js forward                 # Go forward in history
-node webact.js reload                  # Reload the current page
-node webact.js dom                     # Get compact DOM (~4000 chars)
-node webact.js dom <selector>          # Get DOM subtree
-node webact.js axtree                  # Get accessibility tree (semantic roles + names)
-node webact.js axtree -i               # Interactive elements with ref numbers
-node webact.js axtree <selector>       # Get AX tree for a specific element
-node webact.js observe                 # Show interactive elements as ready-to-use commands
-node webact.js screenshot              # Capture screenshot
-node webact.js pdf [path]              # Save page as PDF
-node webact.js click <selector>        # Click element (waits up to 5s, scrolls into view)
-node webact.js doubleclick <selector>  # Double-click an element
-node webact.js rightclick <selector>   # Right-click an element (context menu)
-node webact.js hover <selector>        # Hover over an element (tooltips/menus)
-node webact.js focus <selector>        # Focus an element without clicking
-node webact.js clear <selector>        # Clear an input field or contenteditable
-node webact.js type <selector> <text>  # Type into an input (focuses first)
-node webact.js keyboard <text>         # Type at current caret position (no selector)
-node webact.js select <sel> <value>    # Select option(s) from a <select> dropdown
-node webact.js upload <sel> <file>     # Upload file(s) to a file input
-node webact.js drag <from> <to>        # Drag from one selector to another
-node webact.js dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
-node webact.js waitfor <sel> [ms]      # Wait for element to appear (default 5s)
-node webact.js waitfornav [ms]         # Wait for navigation to complete (default 10s)
-node webact.js press <key>             # Press a key or combo (Enter, Ctrl+A, Meta+C)
-node webact.js scroll <target> [px]    # Scroll: up, down, top, bottom, or selector
-node webact.js eval <js>               # Run JavaScript in page context
-node webact.js cookies                 # List cookies for current page
-node webact.js cookies set <n> <v>     # Set a cookie
-node webact.js cookies delete <name>   # Delete a cookie
-node webact.js cookies clear           # Clear all cookies
-node webact.js console                 # Show recent console output
-node webact.js console errors          # Show only JS errors
-node webact.js block images css        # Block resource types (images/css/fonts/media/scripts)
-node webact.js block off               # Disable request blocking
-node webact.js viewport mobile         # Set viewport (presets: mobile, tablet, desktop)
-node webact.js viewport 1024 768       # Set viewport with exact dimensions
-node webact.js frames                  # List all frames/iframes
-node webact.js frame <id|sel>          # Switch to a frame
-node webact.js frame main              # Return to main frame
-node webact.js download path /tmp/dl   # Set download directory
-node webact.js download list           # List downloaded files
-node webact.js tabs                    # List this session's tabs
-node webact.js tab <id>                # Switch to a session-owned tab
-node webact.js newtab [url]            # Open a new tab in this session
-node webact.js close                   # Close current tab
-node webact.js run <sessionId>         # Run command from session command file
+webact launch                  # Start browser, create session
+webact navigate <url>          # Go to a URL
+webact back                    # Go back in history
+webact forward                 # Go forward in history
+webact reload                  # Reload the current page
+webact dom                     # Get compact DOM (~4000 chars)
+webact dom <selector>          # Get DOM subtree
+webact axtree                  # Get accessibility tree (semantic roles + names)
+webact axtree -i               # Interactive elements with ref numbers
+webact axtree <selector>       # Get AX tree for a specific element
+webact observe                 # Show interactive elements as ready-to-use commands
+webact screenshot              # Capture screenshot
+webact pdf [path]              # Save page as PDF
+webact click <selector>        # Click element (waits up to 5s, scrolls into view)
+webact doubleclick <selector>  # Double-click an element
+webact rightclick <selector>   # Right-click an element (context menu)
+webact hover <selector>        # Hover over an element (tooltips/menus)
+webact focus <selector>        # Focus an element without clicking
+webact clear <selector>        # Clear an input field or contenteditable
+webact type <selector> <text>  # Type into an input (focuses first)
+webact keyboard <text>         # Type at current caret position (no selector)
+webact select <sel> <value>    # Select option(s) from a <select> dropdown
+webact upload <sel> <file>     # Upload file(s) to a file input
+webact drag <from> <to>        # Drag from one selector to another
+webact dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
+webact waitfor <sel> [ms]      # Wait for element to appear (default 5s)
+webact waitfornav [ms]         # Wait for navigation to complete (default 10s)
+webact press <key>             # Press a key or combo (Enter, Ctrl+A, Meta+C)
+webact scroll <target> [px]    # Scroll: up, down, top, bottom, or selector
+webact eval <js>               # Run JavaScript in page context
+webact cookies                 # List cookies for current page
+webact cookies set <n> <v>     # Set a cookie
+webact cookies delete <name>   # Delete a cookie
+webact cookies clear           # Clear all cookies
+webact console                 # Show recent console output
+webact console errors          # Show only JS errors
+webact block images css        # Block resource types (images/css/fonts/media/scripts)
+webact block off               # Disable request blocking
+webact viewport mobile         # Set viewport (presets: mobile, tablet, desktop)
+webact viewport 1024 768       # Set viewport with exact dimensions
+webact frames                  # List all frames/iframes
+webact frame <id|sel>          # Switch to a frame
+webact frame main              # Return to main frame
+webact download path /tmp/dl   # Set download directory
+webact download list           # List downloaded files
+webact tabs                    # List this session's tabs
+webact tab <id>                # Switch to a session-owned tab
+webact newtab [url]            # Open a new tab in this session
+webact close                   # Close current tab
+webact run <sessionId>         # Run command from session command file
 ```
 
 **Ref-based targeting:** After `axtree -i` or `observe`, use the ref numbers directly as selectors - `click 1`, `type 3 hello`. Cached per URL.
 
-The agent workflow: `launch` prints a session ID and command file path. Write command JSON to that file, then `node webact.js run <sessionId>`.
+The agent workflow: `launch` prints a session ID and command file path. Write command JSON to that file, then `webact run <sessionId>`.
 
 ## Token Stats
 
@@ -164,7 +165,7 @@ Several tools give AI agents browser control on top of Playwright: [agent-browse
 | **What it is** | Browser CLI for agents - raw CDP, single file | CLI / MCP server / SDK wrapping Playwright |
 | **Architecture** | CLI connects directly to Chrome via CDP WebSocket | CLI/SDK &rarr; IPC &rarr; Playwright &rarr; bundled Chromium |
 | **Install size** | 196 KB (bundled, zero deps) | ~200 MB+ (node_modules + Chromium download) |
-| **Setup** | Plugin install or copy - no npm install needed | npm install + browser download |
+| **Setup** | `npm install -g` + skill registration | npm install + browser download |
 | **Uses your browser** | Yes - your Chrome, your cookies, your logins | No - launches bundled Chromium with clean state |
 | **Headed mode** | Always - you see what the agent sees | Headless by default |
 | **Auth / logins** | Already signed in - uses your real browser session | Requires auth setup, state persistence, or login flows |

@@ -703,7 +703,7 @@ footer .btn-primary { display: inline-flex; }
       <span class="big-num">196<span style="font-size:0.5em">KB</span></span>
       <span class="big-label">
         <strong>Entire tool, bundled.</strong><br>
-        Zero npm install. Zero Chromium download.
+        Zero Chromium download. Uses your browser.
       </span>
     </div>
   </div>
@@ -875,7 +875,7 @@ footer .btn-primary { display: inline-flex; }
           <div class="arch-node highlight">Your Chrome</div>
         </div>
         <div class="arch-size">
-          <span class="accent">196 KB</span> bundled. Uses the browser you already have.
+          <span class="accent">196 KB</span> CLI. Uses the browser you already have.
         </div>
       </div>
       <div class="arch-col">
@@ -901,28 +901,26 @@ footer .btn-primary { display: inline-flex; }
 <section class="install">
   <div class="container">
     <div class="section-label reveal">Get started</div>
-    <h2 class="section-title reveal">One command. No setup.</h2>
+    <h2 class="section-title reveal">Two commands. No browser download.</h2>
     <p class="section-desc reveal">
-      Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more. No npm install, no browser download.
+      Works with Claude Code, Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more. Uses your existing Chrome.
     </p>
     <div class="install-grid reveal">
       <div class="install-card">
-        <h3>All agents</h3>
-        <pre><span class="comment"># Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more</span>
-<span class="cmd">npx skills add kxbnb/webact</span></pre>
+        <h3>Step 1: Install the CLI</h3>
+        <pre><span class="cmd">npm install -g @kilospark/webact</span></pre>
       </div>
       <div class="install-row">
         <div class="install-card">
-          <h3>Claude Code</h3>
+          <h3>Step 2: Register the skill</h3>
+          <pre><span class="comment"># Cursor, Codex, Windsurf, Cline, Copilot, OpenCode, Goose, and more</span>
+<span class="cmd">npx skills add kxbnb/webact</span></pre>
+        </div>
+        <div class="install-card">
+          <h3>Step 2: Claude Code</h3>
           <pre><span class="comment"># inside Claude Code</span>
 <span class="cmd">/plugin marketplace add kxbnb/webact</span>
 <span class="cmd">/plugin install webact@webact</span></pre>
-        </div>
-        <div class="install-card">
-          <h3>Manual</h3>
-          <pre><span class="comment"># copy into your project</span>
-<span class="cmd">git clone https://github.com/kxbnb/webact.git /tmp/webact</span>
-<span class="cmd">cp -r /tmp/webact/skills/webact .agents/skills/webact</span></pre>
         </div>
       </div>
     </div>
