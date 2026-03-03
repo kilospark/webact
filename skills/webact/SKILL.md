@@ -46,10 +46,10 @@ webact dom
 | `observe` | `webact observe` |
 | `screenshot` | `webact screenshot` |
 | `pdf [path]` | `webact pdf` or `webact pdf /tmp/page.pdf` |
-| `click <selector>` | `webact click button.submit` |
-| `doubleclick <selector>` | `webact doubleclick td.cell` |
-| `rightclick <selector>` | `webact rightclick .context-target` |
-| `hover <selector>` | `webact hover .menu-trigger` |
+| `click <sel\|x,y\|--text>` | `webact click button.submit` or `click 550,197` or `click --text Close` |
+| `doubleclick <sel\|x,y\|--text>` | `webact doubleclick td.cell` or `doubleclick 550,197` |
+| `rightclick <sel\|x,y\|--text>` | `webact rightclick .context-target` or `rightclick 550,197` |
+| `hover <sel\|x,y\|--text>` | `webact hover .menu-trigger` or `hover --text Settings` |
 | `focus <selector>` | `webact focus input[name=q]` |
 | `clear <selector>` | `webact clear input[name=q]` |
 | `type <selector> <text>` | `webact type input[name=q] search query` |
@@ -80,7 +80,7 @@ webact dom
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
 
-**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. No manual waits needed for dynamic elements.
+**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. No manual waits needed for dynamic elements. Fallbacks when CSS selectors fail: `click 550,197` clicks at exact coordinates (from screenshot), `click --text Close` finds and clicks a visible element by text content.
 
 **`dialog` behavior:** Sets a one-shot auto-handler. Run BEFORE the action that triggers the dialog.
 
@@ -180,8 +180,10 @@ Read the DOM output and identify elements by:
 4. **class**: `.nav-link`
 5. **structural**: `form input[type="email"]`
 6. **text-based** (via eval): use eval with `document.querySelector('button').textContent`
+7. **text search**: `click --text "Close"` — finds smallest visible element containing the text. Works for portals, overlays, and shadow DOM elements where CSS selectors fail.
+8. **coordinates** (from screenshot): `click 550,197` — take a screenshot, identify the target's position, click at those pixel coordinates. Last resort for canvas, iframes, or elements with no text.
 
-If a CSS selector doesn't work, use `eval` to find elements by text content:
+If a CSS selector doesn't work, use `--text` or coordinates before falling back to `eval`:
 ```bash
 webact eval "[...document.querySelectorAll('a')].find(a => a.textContent.includes('Sign in'))?.getAttribute('href')"
 ```
@@ -231,3 +233,9 @@ Some apps have non-standard DOMs that require specific approaches.
 - Use `keyboard` for short inline text and @mentions
 - Use `eval` when you need to extract content from editors with virtual rendering
 - If `paste` doesn't work for a specific app, fall back to `eval` with a custom ClipboardEvent
+
+**Portals, shadow DOM, and overlays:**
+- Modal dialogs, dropdowns, and popups often render in portal containers outside the main DOM tree — CSS selectors based on the triggering element's context won't find them
+- Use `click --text "Close"` or `click --text "Save"` to target overlay buttons by their visible text
+- For elements with no distinguishing text, take a `screenshot`, identify the pixel coordinates, then `click 550,197`
+- Shadow DOM elements are invisible to `document.querySelector` — use text search or coordinates instead

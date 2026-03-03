@@ -4314,18 +4314,32 @@ async function cmdScreenshot() {
     console.log(`Screenshot saved to ${outPath}`);
   });
 }
+function parseCoordinates(args) {
+  if (args.length === 1 && /^\d+(\.\d+)?,\d+(\.\d+)?$/.test(args[0])) {
+    const [x, y] = args[0].split(",").map(Number);
+    return { x, y };
+  }
+  if (args.length === 2 && /^\d+(\.\d+)?$/.test(args[0]) && /^\d+(\.\d+)?$/.test(args[1])) {
+    return { x: Number(args[0]), y: Number(args[1]) };
+  }
+  return null;
+}
 async function locateElement(cdp, selector) {
   const result = await cdp.send("Runtime.evaluate", {
     expression: `
       (async function() {
         const sel = ${JSON.stringify(selector)};
         let el;
-        for (let i = 0; i < 50; i++) {
-          el = document.querySelector(sel);
-          if (el) break;
-          await new Promise(r => setTimeout(r, 100));
+        try {
+          for (let i = 0; i < 50; i++) {
+            el = document.querySelector(sel);
+            if (el) break;
+            await new Promise(r => setTimeout(r, 100));
+          }
+        } catch (e) {
+          return { error: 'Invalid CSS selector: ' + sel + '. Use CSS selectors (#id, .class, tag). For text search: click --text "text"' };
         }
-        if (!el) return { error: 'Element not found after 5s: ' + sel };
+        if (!el) return { error: 'Element not found after 5s: ' + sel + '. Try: click --text "text" or screenshot then click x,y' };
         el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
         await new Promise(r => setTimeout(r, 50));
         const rect = el.getBoundingClientRect();
@@ -4335,6 +4349,43 @@ async function locateElement(cdp, selector) {
     `,
     returnByValue: true,
     awaitPromise: true
+  });
+  const loc = result.result.value;
+  if (loc.error) {
+    console.error(loc.error);
+    process.exit(1);
+  }
+  return loc;
+}
+async function locateElementByText(cdp, text) {
+  const result = await cdp.send("Runtime.evaluate", {
+    expression: `
+      (function() {
+        const target = ${JSON.stringify(text)};
+        const lower = target.toLowerCase();
+        let best = null;
+        let bestLen = Infinity;
+        for (const el of document.querySelectorAll('*')) {
+          if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') continue;
+          const t = (el.textContent || '').trim();
+          if (!t) continue;
+          const tl = t.toLowerCase();
+          const exact = tl === lower;
+          const has = tl.includes(lower);
+          if (!exact && !has) continue;
+          const len = t.length;
+          if (exact && (!best || !best.exact || len < bestLen)) { best = { el, exact: true }; bestLen = len; }
+          else if (has && !best?.exact && len < bestLen) { best = { el, exact: false }; bestLen = len; }
+        }
+        if (!best) return { error: 'No visible element with text: ' + target };
+        const el = best.el;
+        el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+        const rect = el.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
+                 tag: el.tagName, text: (el.textContent || '').substring(0, 50).trim() };
+      })()
+    `,
+    returnByValue: true
   });
   const loc = result.result.value;
   if (loc.error) {
@@ -5736,15 +5787,95 @@ async function dispatch(command, args) {
     case "screenshot":
       await cmdScreenshot();
       break;
-    case "click":
-      await cmdClick(resolveSelector(args.join(" ")));
+    case "click": {
+      const coords = parseCoordinates(args);
+      if (coords) {
+        await withCDP(async (cdp) => {
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: coords.x, y: coords.y, button: "left", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: coords.x, y: coords.y, button: "left", clickCount: 1 });
+          console.log(`Clicked at (${coords.x}, ${coords.y})`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else if (args[0] === "--text") {
+        const text = args.slice(1).join(" ");
+        if (!text) {
+          console.error("Usage: webact click --text <text>");
+          process.exit(1);
+        }
+        await withCDP(async (cdp) => {
+          const loc = await locateElementByText(cdp, text);
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: loc.x, y: loc.y, button: "left", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: loc.x, y: loc.y, button: "left", clickCount: 1 });
+          console.log(`Clicked ${loc.tag.toLowerCase()} "${loc.text}" (text match)`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else {
+        await cmdClick(resolveSelector(args.join(" ")));
+      }
       break;
-    case "doubleclick":
-      await cmdDoubleClick(resolveSelector(args.join(" ")));
+    }
+    case "doubleclick": {
+      const coords = parseCoordinates(args);
+      if (coords) {
+        await withCDP(async (cdp) => {
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: coords.x, y: coords.y, button: "left", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: coords.x, y: coords.y, button: "left", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: coords.x, y: coords.y, button: "left", clickCount: 2 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: coords.x, y: coords.y, button: "left", clickCount: 2 });
+          console.log(`Double-clicked at (${coords.x}, ${coords.y})`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else if (args[0] === "--text") {
+        const text = args.slice(1).join(" ");
+        if (!text) {
+          console.error("Usage: webact doubleclick --text <text>");
+          process.exit(1);
+        }
+        await withCDP(async (cdp) => {
+          const loc = await locateElementByText(cdp, text);
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: loc.x, y: loc.y, button: "left", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: loc.x, y: loc.y, button: "left", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: loc.x, y: loc.y, button: "left", clickCount: 2 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: loc.x, y: loc.y, button: "left", clickCount: 2 });
+          console.log(`Double-clicked ${loc.tag.toLowerCase()} "${loc.text}" (text match)`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else {
+        await cmdDoubleClick(resolveSelector(args.join(" ")));
+      }
       break;
-    case "hover":
-      await cmdHover(resolveSelector(args.join(" ")));
+    }
+    case "hover": {
+      const coords = parseCoordinates(args);
+      if (coords) {
+        await withCDP(async (cdp) => {
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: coords.x, y: coords.y });
+          console.log(`Hovered at (${coords.x}, ${coords.y})`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else if (args[0] === "--text") {
+        const text = args.slice(1).join(" ");
+        if (!text) {
+          console.error("Usage: webact hover --text <text>");
+          process.exit(1);
+        }
+        await withCDP(async (cdp) => {
+          const loc = await locateElementByText(cdp, text);
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: loc.x, y: loc.y });
+          console.log(`Hovered ${loc.tag.toLowerCase()} "${loc.text}" (text match)`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else {
+        await cmdHover(resolveSelector(args.join(" ")));
+      }
       break;
+    }
     case "focus":
       await cmdFocus(resolveSelector(args.join(" ")));
       break;
@@ -5817,9 +5948,35 @@ async function dispatch(command, args) {
     case "reload":
       await cmdReload();
       break;
-    case "rightclick":
-      await cmdRightClick(resolveSelector(args.join(" ")));
+    case "rightclick": {
+      const coords = parseCoordinates(args);
+      if (coords) {
+        await withCDP(async (cdp) => {
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: coords.x, y: coords.y, button: "right", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: coords.x, y: coords.y, button: "right", clickCount: 1 });
+          console.log(`Right-clicked at (${coords.x}, ${coords.y})`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else if (args[0] === "--text") {
+        const text = args.slice(1).join(" ");
+        if (!text) {
+          console.error("Usage: webact rightclick --text <text>");
+          process.exit(1);
+        }
+        await withCDP(async (cdp) => {
+          const loc = await locateElementByText(cdp, text);
+          await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: loc.x, y: loc.y, button: "right", clickCount: 1 });
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: loc.x, y: loc.y, button: "right", clickCount: 1 });
+          console.log(`Right-clicked ${loc.tag.toLowerCase()} "${loc.text}" (text match)`);
+          await new Promise((r) => setTimeout(r, 150));
+          console.log(await getPageBrief(cdp));
+        });
+      } else {
+        await cmdRightClick(resolveSelector(args.join(" ")));
+      }
       break;
+    }
     case "clear":
       await cmdClear(resolveSelector(args.join(" ")));
       break;
@@ -5875,10 +6032,10 @@ Commands:
   observe             Show interactive elements as ready-to-use commands
   screenshot          Capture screenshot
   pdf [path]          Save page as PDF
-  click <selector>    Click an element (waits up to 5s, scrolls into view)
-  doubleclick <sel>   Double-click an element
-  rightclick <sel>    Right-click an element (context menu)
-  hover <selector>    Hover over an element (triggers tooltips/menus)
+  click <sel|x,y|--text> Click element, coordinates, or text match
+  doubleclick <sel|x,y|--text> Double-click element, coordinates, or text
+  rightclick <sel|x,y|--text>  Right-click element, coordinates, or text
+  hover <sel|x,y|--text>       Hover element, coordinates, or text
   focus <selector>    Focus an element without clicking
   clear <selector>    Clear an input field or contenteditable
   type <sel> <text>   Type text into element (focuses selector first)
