@@ -6,6 +6,7 @@ const path = require('path');
 const net = require('net');
 const os = require('os');
 const crypto = require('crypto');
+const { version: VERSION } = require('./package.json');
 
 // --- Temp directory (cross-platform) ---
 const TMP = os.tmpdir();
@@ -1527,8 +1528,8 @@ async function fetchInteractiveElements(cdp) {
   for (let i = 0; i < interactiveNodes.length; i++) {
     const node = interactiveNodes[i];
     const role = node.role?.value || '';
-    const name = node.name?.value || '';
-    const value = node.value?.value || '';
+    const name = String(node.name?.value ?? '');
+    const value = String(node.value?.value ?? '');
     let line = `[${i + 1}] ${role}`;
     if (name) line += ` "${name.substring(0, 80)}"`;
     if (value) line += ` val="${value.substring(0, 40)}"`;
@@ -1628,8 +1629,8 @@ async function cmdAxtree(selector, interactiveOnly) {
       function collectInteractive(node) {
         const role = node.role?.value || '';
         if (INTERACTIVE_ROLES.has(role)) {
-          const name = node.name?.value || '';
-          const value = node.value?.value || '';
+          const name = String(node.name?.value ?? '');
+          const value = String(node.value?.value ?? '');
           let line = `[${idx}] ${role}`;
           if (name) line += ` "${name.substring(0, 80)}"`;
           if (value) line += ` val="${value.substring(0, 40)}"`;
@@ -1661,8 +1662,8 @@ async function cmdAxtree(selector, interactiveOnly) {
         const role = node.role?.value || '';
         if (SKIP_ROLES.has(role)) return '';
 
-        const name = node.name?.value || '';
-        const value = node.value?.value || '';
+        const name = String(node.name?.value ?? '');
+        const value = String(node.value?.value ?? '');
         const isPassThrough = PASS_THROUGH_ROLES.has(role) && !name;
 
         let out = '';
@@ -2413,7 +2414,7 @@ async function main() {
   const [,, command, ...args] = process.argv;
 
   if (!command) {
-    console.log(`webact v2.9.0 - Browser automation via Chrome DevTools Protocol
+    console.log(`webact v${VERSION} - Browser automation via Chrome DevTools Protocol
 
 Usage: webact <command> [args]
 

@@ -1,6 +1,6 @@
 {
   "name": "@kilospark/webact",
-  "version": "2.9.0",
+  "version": "2.10.1",
   "description": "CLI for browser automation via Chrome DevTools Protocol",
   "main": "webact.js",
   "bin": {

@@ -3635,6 +3635,53 @@ var require_ws = __commonJS({
   }
 });
 
+// package.json
+var require_package = __commonJS({
+  "package.json"(exports2, module2) {
+    module2.exports = {
+      name: "@kilospark/webact",
+      version: "2.10.1",
+      description: "CLI for browser automation via Chrome DevTools Protocol",
+      main: "webact.js",
+      bin: {
+        webact: "./webact.js"
+      },
+      files: [
+        "webact.js",
+        "SKILL.md",
+        "agents/"
+      ],
+      scripts: {
+        build: "esbuild webact.src.js --bundle --platform=node --target=node18 --format=cjs --banner:js='#!/usr/bin/env node' --external:bufferutil --external:utf-8-validate --outfile=webact.js",
+        test: 'echo "Error: no test specified" && exit 1'
+      },
+      keywords: [
+        "browser",
+        "automation",
+        "chrome",
+        "cdp",
+        "cli",
+        "agents"
+      ],
+      author: "",
+      license: "ISC",
+      type: "commonjs",
+      repository: {
+        type: "git",
+        url: "https://github.com/kilospark/webact.git",
+        directory: "skills/webact"
+      },
+      engines: {
+        node: ">=18.0.0"
+      },
+      devDependencies: {
+        esbuild: "^0.24.0",
+        ws: "^8.19.0"
+      }
+    };
+  }
+});
+
 // webact.src.js
 var WebSocket = require_ws();
 var http = require("http");
@@ -3644,6 +3691,7 @@ var path = require("path");
 var net = require("net");
 var os = require("os");
 var crypto = require("crypto");
+var { version: VERSION } = require_package();
 var TMP = os.tmpdir();
 var CDP_PORT = 9222;
 function findFreePort() {
@@ -5122,8 +5170,8 @@ async function fetchInteractiveElements(cdp) {
   for (let i = 0; i < interactiveNodes.length; i++) {
     const node = interactiveNodes[i];
     const role = node.role?.value || "";
-    const name = node.name?.value || "";
-    const value = node.value?.value || "";
+    const name = String(node.name?.value ?? "");
+    const value = String(node.value?.value ?? "");
     let line = `[${i + 1}] ${role}`;
     if (name) line += ` "${name.substring(0, 80)}"`;
     if (value) line += ` val="${value.substring(0, 40)}"`;
@@ -5222,8 +5270,8 @@ async function cmdAxtree(selector, interactiveOnly) {
       let collectInteractive2 = function(node) {
         const role = node.role?.value || "";
         if (INTERACTIVE_ROLES.has(role)) {
-          const name = node.name?.value || "";
-          const value = node.value?.value || "";
+          const name = String(node.name?.value ?? "");
+          const value = String(node.value?.value ?? "");
           let line = `[${idx}] ${role}`;
           if (name) line += ` "${name.substring(0, 80)}"`;
           if (value) line += ` val="${value.substring(0, 40)}"`;
@@ -5256,8 +5304,8 @@ async function cmdAxtree(selector, interactiveOnly) {
       let formatNode2 = function(node, depth) {
         const role = node.role?.value || "";
         if (SKIP_ROLES.has(role)) return "";
-        const name = node.name?.value || "";
-        const value = node.value?.value || "";
+        const name = String(node.name?.value ?? "");
+        const value = String(node.value?.value ?? "");
         const isPassThrough = PASS_THROUGH_ROLES.has(role) && !name;
         let out = "";
         if (!isPassThrough) {
@@ -6041,7 +6089,7 @@ async function dispatch(command, args) {
 async function main() {
   const [, , command, ...args] = process.argv;
   if (!command) {
-    console.log(`webact v2.9.0 - Browser automation via Chrome DevTools Protocol
+    console.log(`webact v${VERSION} - Browser automation via Chrome DevTools Protocol
 
 Usage: webact <command> [args]
 
