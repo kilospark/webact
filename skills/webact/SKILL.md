@@ -227,6 +227,11 @@ Some apps have non-standard DOMs that require specific approaches.
 - Message composition: Click the message input, then use `keyboard` to type
 - Message extraction: Use `eval` to query Slack's virtual DOM — standard CSS selectors are unreliable due to virtual scrolling
 - Example: `eval [...document.querySelectorAll('[data-qa="virtual-list-item"]')].map(el => el.textContent).join('\n')`
+- `axtree` is a non-starter for Slack content: `-i` only shows chrome-level controls (tabs, search, sidebar slider), and full mode returns empty names for channels (Slack renders names via CSS/virtual DOM, not accessible text). Use `eval` for channel discovery and message reading.
+- The `navigate` auto-brief is useful for spotting unread badges (e.g. "DMs2", "Activity1")
+
+**Gmail:**
+- Ref-based clicking from `observe`/`axtree -i` doesn't work for Gmail checkboxes — refs point to wrapper divs that don't trigger the actual checkbox state change. Use CSS selectors instead.
 
 **General rich editors (Notion, Quill, ProseMirror, etc.):**
 - Prefer `paste` over `keyboard` for multi-line text — many editors handle paste events specially
