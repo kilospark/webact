@@ -9,7 +9,7 @@ Control Chrome directly via the Chrome DevTools Protocol. No Playwright, no MCP 
 
 ## How to Run Commands
 
-All commands use the `webact` CLI. First, check if `webact` is on PATH by running `which webact`. If found, use `webact` directly. If not, fall back to `node <base-dir>/webact.js` where `<base-dir>` is this skill's base directory.
+All commands use the `webact` CLI. Use `node <base-dir>/webact.js` where `<base-dir>` is this skill's base directory. This ensures you always run the version bundled with the skill. Only fall back to a global `webact` on PATH if the skill directory is unavailable.
 
 ### Session Setup (once)
 
