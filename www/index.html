@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>webact - token-efficient browser control for AI agents</title>
-<meta name="description" content="Give your AI agent a browser. 196 KB, zero dependencies, 98% fewer tokens than alternatives. Raw CDP over WebSocket.">
+<meta name="description" content="Give your AI agent a browser. 228 KB on disk, zero dependencies, 98% fewer tokens than alternatives. Raw CDP over WebSocket.">
 <link rel="icon" href="favicon.ico" sizes="32x32">
 <link rel="icon" type="image/svg+xml" href="webact-icon-dark.svg">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
@@ -713,10 +713,10 @@ footer .btn-primary { display: inline-flex; }
       </a>
     </div>
     <div class="hero-size">
-      <span class="big-num">196<span style="font-size:0.5em">KB</span></span>
+      <span class="big-num">228<span style="font-size:0.5em">KB</span></span>
       <span class="big-label">
-        <strong>Entire tool, bundled.</strong><br>
-        Zero Chromium download. Uses your browser.
+        <strong>Install size. Entire tool, bundled.</strong><br>
+        Runs as a CLI — never loaded into context.
       </span>
     </div>
   </div>
@@ -735,11 +735,11 @@ footer .btn-primary { display: inline-flex; }
         <div class="stat-label">File</div>
       </div>
       <div class="stat-card reveal">
-        <div class="stat-value">2,200</div>
+        <div class="stat-value">2,900</div>
         <div class="stat-label">Lines of source</div>
       </div>
       <div class="stat-card reveal">
-        <div class="stat-value">50+</div>
+        <div class="stat-value">60+</div>
         <div class="stat-label">Commands</div>
       </div>
     </div>
@@ -845,7 +845,7 @@ footer .btn-primary { display: inline-flex; }
         <div class="step-num">01</div>
         <div class="step-title">Act</div>
         <div class="step-text">
-          Navigate, click, type, scroll - 50+ CDP commands.
+          Navigate, click, type, scroll - 60+ CDP commands.
           Each one auto-prints a compact page brief.
         </div>
       </div>
@@ -881,15 +881,15 @@ footer .btn-primary { display: inline-flex; }
     <div class="arch-compare reveal">
       <div class="arch-col">
         <h3>webact</h3>
-        <div class="arch-sub">196 KB total</div>
+        <div class="arch-sub">228 KB total</div>
         <div class="arch-chain">
           <div class="arch-node highlight">CLI (webact.js)</div>
           <div class="arch-arrow">&darr; CDP WebSocket</div>
           <div class="arch-node highlight">Your Chrome</div>
         </div>
         <div class="arch-size">
-          <span class="accent">196 KB</span> CLI. Uses the browser you already have.
-          Your real Chrome user agent — no bot fingerprint.
+          <span class="accent">228 KB</span> on disk. Runs as a CLI, not loaded into context.
+          Uses your browser — your real Chrome user agent, no bot fingerprint.
         </div>
       </div>
       <div class="arch-col">

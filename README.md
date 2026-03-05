@@ -75,10 +75,14 @@ webact reload                  # Reload the current page
 webact dom                     # Get compact DOM (~4000 chars)
 webact dom <selector>          # Get DOM subtree
 webact dom --full              # Full DOM without truncation
+webact dom --tokens=N          # Truncate DOM to ~N tokens
 webact axtree                  # Get accessibility tree (semantic roles + names)
 webact axtree -i               # Interactive elements with ref numbers
+webact axtree -i --diff        # Show only changes since last snapshot
+webact axtree -i --tokens=N    # Truncate output to ~N tokens
 webact axtree <selector>       # Get AX tree for a specific element
 webact observe                 # Show interactive elements as ready-to-use commands
+webact find <query>            # Find element by description (e.g. find "login button")
 webact screenshot              # Capture screenshot
 webact pdf [path]              # Save page as PDF
 webact click <sel|x,y|--text>  # Click by selector, coordinates, or text match
@@ -92,6 +96,8 @@ webact keyboard <text>         # Type at current caret position (no selector)
 webact paste <text>            # Paste via clipboard event (for rich editors)
 webact select <sel> <value>    # Select option(s) from a <select> dropdown
 webact upload <sel> <file>     # Upload file(s) to a file input
+webact humanclick <sel|x,y>    # Click with human-like mouse movement + timing
+webact humantype <sel> <text>  # Type with variable delays, occasional pauses
 webact drag <from> <to>        # Drag from one selector to another
 webact dialog accept|dismiss   # Handle alert/confirm/prompt dialogs
 webact waitfor <sel> [ms]      # Wait for element to appear (default 5s)
@@ -107,6 +113,7 @@ webact console                 # Show recent console output
 webact console errors          # Show only JS errors
 webact console listen          # Real-time console output (until Ctrl+C)
 webact block <pattern>         # Block requests: images, css, fonts, media, scripts, or URL
+webact block --ads             # Block ads, analytics, and tracking (40+ patterns)
 webact block off               # Disable request blocking
 webact viewport <preset|w h>   # Set viewport (mobile, tablet, desktop, iphone, ipad)
 webact frames                  # List all frames/iframes
@@ -118,6 +125,8 @@ webact tabs                    # List this session's tabs
 webact tab <id>                # Switch to a session-owned tab
 webact newtab [url]            # Open a new tab in this session
 webact close                   # Close current tab
+webact lock [ttl]              # Lock current tab to this session (default 300s)
+webact unlock                  # Unlock current tab
 webact activate                # Bring browser window to front (macOS)
 webact minimize                # Minimize browser window (macOS)
 webact run <sessionId>         # Run command from session command file
@@ -158,7 +167,7 @@ Several tools give AI agents browser control on top of Playwright: [agent-browse
 |--|-----------|--------------------------|
 | **What it is** | Browser CLI for agents - raw CDP, single file | CLI / MCP server / SDK wrapping Playwright |
 | **Architecture** | CLI connects directly to Chrome via CDP WebSocket | CLI/SDK &rarr; IPC &rarr; Playwright &rarr; bundled Chromium |
-| **Install size** | 196 KB (bundled, zero deps) | ~200 MB+ (node_modules + Chromium download) |
+| **Install size** | 228 KB on disk (bundled CLI, zero deps) | ~200 MB+ (node_modules + Chromium download) |
 | **Setup** | `npm install -g` + skill registration | npm install + browser download |
 | **Uses your browser** | Yes - your Chrome, your cookies, your logins | No - launches bundled Chromium with clean state |
 | **User agent** | Your real Chrome user agent - no bot fingerprint | Modified Playwright/Chromium UA - detectable by sites |
