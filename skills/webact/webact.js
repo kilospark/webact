@@ -3640,7 +3640,7 @@ var require_package = __commonJS({
   "package.json"(exports2, module2) {
     module2.exports = {
       name: "@kilospark/webact",
-      version: "2.13.0",
+      version: "2.14.0",
       description: "CLI for browser automation via Chrome DevTools Protocol",
       main: "webact.js",
       bin: {
@@ -4025,6 +4025,22 @@ async function getPageBrief(cdp) {
     return "";
   }
 }
+async function getFrameContextId(cdp) {
+  const state = loadSessionState();
+  if (!state.activeFrameId) return void 0;
+  const contexts = [];
+  cdp.on("Runtime.executionContextCreated", (params) => {
+    contexts.push(params.context);
+  });
+  await cdp.send("Runtime.enable");
+  await new Promise((r) => setTimeout(r, 30));
+  const ctx = contexts.find((c) => c.auxData && c.auxData.frameId === state.activeFrameId && c.auxData.isDefault);
+  if (!ctx) {
+    console.error(`Could not find execution context for frame ${state.activeFrameId}. Try "webact.js frames" to verify the frame still exists.`);
+    process.exit(1);
+  }
+  return ctx.id;
+}
 async function withCDP(fn) {
   const tab = await connectToTab();
   const lock = checkTabLock(tab.id);
@@ -4310,14 +4326,12 @@ async function cmdNavigate(url) {
     console.log(await getPageBrief(cdp));
   });
 }
-async function cmdDom(selector, full, maxTokens) {
+async function cmdDom(selector, maxTokens) {
   const extractScript = `
     (function() {
       const SKIP_TAGS = new Set(['SCRIPT','STYLE','SVG','NOSCRIPT','LINK','META','HEAD']);
       const INTERACTIVE = new Set(['A','BUTTON','INPUT','TEXTAREA','SELECT','DETAILS','SUMMARY']);
       const KEEP_ATTRS = ['id','class','href','placeholder','aria-label','type','name','value','role','title','alt','for','action','data-testid'];
-      const MAX_LEN = ${full ? 1e5 : 4e3};
-
       function isVisible(el) {
         if (el.offsetParent === null && el.tagName !== 'BODY' && el.tagName !== 'HTML') {
           const style = getComputedStyle(el);
@@ -4378,18 +4392,14 @@ async function cmdDom(selector, full, maxTokens) {
 
       const root = ${selector ? `document.querySelector(${JSON.stringify(selector)})` : "document.body"};
       if (!root) return 'ERROR: Element not found' + (${selector ? `' for selector: ' + ${JSON.stringify(selector)}` : "''"});
-      let result = extract(root, 0);
-      if (result.length > MAX_LEN) {
-        result = result.substring(0, MAX_LEN) + '\\n... (truncated, use --full for complete output)';
-      }
-      return result;
+      return extract(root, 0);
     })()
   `;
   await withCDP(async (cdp) => {
-    const result = await cdp.send("Runtime.evaluate", {
-      expression: extractScript,
-      returnByValue: true
-    });
+    const contextId = await getFrameContextId(cdp);
+    const evalOpts = { expression: extractScript, returnByValue: true };
+    if (contextId !== void 0) evalOpts.contextId = contextId;
+    const result = await cdp.send("Runtime.evaluate", evalOpts);
     if (result.exceptionDetails) {
       console.error("DOM extraction error:", result.exceptionDetails.text);
       process.exit(1);
@@ -4423,7 +4433,8 @@ function parseCoordinates(args) {
   return null;
 }
 async function locateElement(cdp, selector) {
-  const result = await cdp.send("Runtime.evaluate", {
+  const contextId = await getFrameContextId(cdp);
+  const evalOpts = {
     expression: `
       (async function() {
         const sel = ${JSON.stringify(selector)};
@@ -4447,7 +4458,9 @@ async function locateElement(cdp, selector) {
     `,
     returnByValue: true,
     awaitPromise: true
-  });
+  };
+  if (contextId !== void 0) evalOpts.contextId = contextId;
+  const result = await cdp.send("Runtime.evaluate", evalOpts);
   const loc = result.result.value;
   if (loc.error) {
     console.error(loc.error);
@@ -4456,7 +4469,8 @@ async function locateElement(cdp, selector) {
   return loc;
 }
 async function locateElementByText(cdp, text) {
-  const result = await cdp.send("Runtime.evaluate", {
+  const contextId = await getFrameContextId(cdp);
+  const evalOpts = {
     expression: `
       (function() {
         const target = ${JSON.stringify(text)};
@@ -4493,7 +4507,9 @@ async function locateElementByText(cdp, text) {
       })()
     `,
     returnByValue: true
-  });
+  };
+  if (contextId !== void 0) evalOpts.contextId = contextId;
+  const result = await cdp.send("Runtime.evaluate", evalOpts);
   const loc = result.result.value;
   if (loc.error) {
     console.error(loc.error);
@@ -4585,6 +4601,12 @@ async function cmdClick(selector) {
   }
   await withCDP(async (cdp) => {
     const loc = await locateElement(cdp, selector);
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: loc.x,
+      y: loc.y
+    });
+    await new Promise((r) => setTimeout(r, 80));
     await cdp.send("Input.dispatchMouseEvent", {
       type: "mousePressed",
       x: loc.x,
@@ -5123,20 +5145,32 @@ async function cmdEval(expression) {
     process.exit(1);
   }
   await withCDP(async (cdp) => {
-    const wrapped = `(() => { const __r = (${expression}); if (__r !== null && __r !== undefined && typeof __r === 'object') { return JSON.stringify(__r, (k, v) => v instanceof HTMLElement ? v.outerHTML.slice(0, 200) : v, 2); } return __r; })()`;
-    const result = await cdp.send("Runtime.evaluate", {
-      expression: wrapped,
-      returnByValue: true
-    });
+    const contextId = await getFrameContextId(cdp);
+    const evalOpts = { expression, returnByValue: false, awaitPromise: true };
+    if (contextId !== void 0) evalOpts.contextId = contextId;
+    const result = await cdp.send("Runtime.evaluate", evalOpts);
     if (result.exceptionDetails) {
       console.error("Error:", result.exceptionDetails.text || result.exceptionDetails.exception?.description);
       process.exit(1);
     }
-    const val = result.result.value;
-    if (val !== void 0) {
-      console.log(val);
+    const r = result.result;
+    if (r.type === "undefined") {
+    } else if (r.type === "object" && r.objectId) {
+      const serOpts = {
+        expression: `JSON.stringify(this, (k, v) => v instanceof HTMLElement ? v.outerHTML.slice(0, 200) : v, 2)`,
+        objectId: r.objectId,
+        returnByValue: true
+      };
+      const ser = await cdp.send("Runtime.callFunctionOn", serOpts);
+      if (ser.result.value !== void 0) {
+        console.log(ser.result.value);
+      } else {
+        console.log(r.description || `(${r.type})`);
+      }
+    } else if (r.value !== void 0) {
+      console.log(r.value);
     } else {
-      console.log(`(${result.result.type}: ${result.result.description || result.result.value})`);
+      console.log(r.description || `(${r.type})`);
     }
   });
 }
@@ -5930,6 +5964,71 @@ async function cmdConsole(action) {
     process.exit(1);
   }
 }
+async function cmdNetwork(action, ...args) {
+  if (!action) action = "capture";
+  const logFile = path.join(TMP, `webact-network-${currentSessionId || "default"}.json`);
+  switch (action) {
+    case "capture": {
+      const duration = parseInt(args[0], 10) || 10;
+      const filter = args[1] || null;
+      await withCDP(async (cdp) => {
+        await cdp.send("Network.enable");
+        const requests = [];
+        const startTime = Date.now();
+        cdp.on("Network.requestWillBeSent", (params) => {
+          if (filter && !params.request.url.includes(filter)) return;
+          requests.push({
+            id: params.requestId,
+            method: params.request.method,
+            url: params.request.url,
+            type: params.type || "",
+            time: Date.now() - startTime,
+            postData: params.request.postData ? params.request.postData.substring(0, 2e3) : void 0
+          });
+        });
+        cdp.on("Network.responseReceived", (params) => {
+          const req = requests.find((r) => r.id === params.requestId);
+          if (req) {
+            req.status = params.response.status;
+            req.statusText = params.response.statusText;
+            req.mimeType = params.response.mimeType;
+          }
+        });
+        console.log(`Capturing network for ${duration}s${filter ? ` (filter: "${filter}")` : ""}...`);
+        await new Promise((r) => setTimeout(r, duration * 1e3));
+        for (const r of requests) {
+          const status = r.status ? ` [${r.status}]` : " [pending]";
+          console.log(`${r.method} ${r.url.substring(0, 150)}${status} (${r.type || "?"}) +${r.time}ms`);
+          if (r.postData) console.log(`  body: ${r.postData.substring(0, 200)}`);
+        }
+        console.log(`
+${requests.length} requests captured`);
+        fs.writeFileSync(logFile, JSON.stringify(requests, null, 2));
+      });
+      break;
+    }
+    case "show": {
+      if (!fs.existsSync(logFile)) {
+        console.error('No captured requests. Run "network capture" first.');
+        process.exit(1);
+      }
+      const requests = JSON.parse(fs.readFileSync(logFile, "utf-8"));
+      const filter = args[0] || null;
+      const filtered = filter ? requests.filter((r) => r.url.includes(filter)) : requests;
+      for (const r of filtered) {
+        const status = r.status ? ` [${r.status}]` : " [pending]";
+        console.log(`${r.method} ${r.url.substring(0, 150)}${status} (${r.type || "?"}) +${r.time}ms`);
+        if (r.postData) console.log(`  body: ${r.postData.substring(0, 200)}`);
+      }
+      console.log(`
+${filtered.length} requests${filter ? ` matching "${filter}"` : ""}`);
+      break;
+    }
+    default:
+      console.error("Usage: webact network [capture [seconds] [filter]|show [filter]]");
+      process.exit(1);
+  }
+}
 var ADBLOCK_PATTERNS = [
   "google-analytics.com",
   "googletagmanager.com",
@@ -6111,14 +6210,39 @@ async function cmdFrame(frameIdOrSelector) {
         expression: `
           (function() {
             const el = document.querySelector(${JSON.stringify(frameIdOrSelector)});
-            if (!el || el.tagName !== 'IFRAME') return null;
-            return el.getAttribute('name') || el.id || null;
+            if (!el || (el.tagName !== 'IFRAME' && el.tagName !== 'FRAME')) return null;
+            return { name: el.getAttribute('name') || null, id: el.id || null, src: el.src || null };
           })()
         `,
         returnByValue: true
       });
-      if (result.result.value) {
-        frame = findFrame(tree.frameTree);
+      const info = result.result.value;
+      if (info) {
+        if (info.name || info.id) {
+          let findFrameByNameOrId2 = function(node) {
+            if (node.frame.id === nameOrId || node.frame.name === nameOrId) return node.frame;
+            for (const child of node.childFrames || []) {
+              const found = findFrameByNameOrId2(child);
+              if (found) return found;
+            }
+            return null;
+          };
+          var findFrameByNameOrId = findFrameByNameOrId2;
+          const nameOrId = info.name || info.id;
+          frame = findFrameByNameOrId2(tree.frameTree);
+        }
+        if (!frame && info.src) {
+          let findFrameByUrl2 = function(node, url) {
+            if (node.frame.url === url) return node.frame;
+            for (const child of node.childFrames || []) {
+              const found = findFrameByUrl2(child, url);
+              if (found) return found;
+            }
+            return null;
+          };
+          var findFrameByUrl = findFrameByUrl2;
+          frame = findFrameByUrl2(tree.frameTree, info.src);
+        }
       }
     }
     if (!frame) {
@@ -6245,12 +6369,11 @@ async function dispatch(command, args) {
       await cmdNavigate(args.join(" "));
       break;
     case "dom": {
-      const full = args.includes("--full");
       const tokensArg = args.find((a) => a.startsWith("--tokens="));
       const maxTokens = tokensArg ? parseInt(tokensArg.split("=")[1], 10) : 0;
       const selectorArg = args.filter((a) => a !== "--full" && !a.startsWith("--tokens=")).join(" ") || null;
       const selector = selectorArg ? resolveSelector(selectorArg) : null;
-      await cmdDom(selector, full, maxTokens);
+      await cmdDom(selector, maxTokens);
       break;
     }
     case "screenshot":
@@ -6260,6 +6383,8 @@ async function dispatch(command, args) {
       const coords = parseCoordinates(args);
       if (coords) {
         await withCDP(async (cdp) => {
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: coords.x, y: coords.y });
+          await new Promise((r) => setTimeout(r, 80));
           await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: coords.x, y: coords.y, button: "left", clickCount: 1 });
           await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: coords.x, y: coords.y, button: "left", clickCount: 1 });
           console.log(`Clicked at (${coords.x}, ${coords.y})`);
@@ -6274,6 +6399,8 @@ async function dispatch(command, args) {
         }
         await withCDP(async (cdp) => {
           const loc = await locateElementByText(cdp, text);
+          await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: loc.x, y: loc.y });
+          await new Promise((r) => setTimeout(r, 80));
           await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x: loc.x, y: loc.y, button: "left", clickCount: 1 });
           await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: loc.x, y: loc.y, button: "left", clickCount: 1 });
           console.log(`Clicked ${loc.tag.toLowerCase()} "${loc.text}" (text match)`);
@@ -6464,6 +6591,9 @@ async function dispatch(command, args) {
     case "console":
       await cmdConsole(args[0]);
       break;
+    case "network":
+      await cmdNetwork(args[0], ...args.slice(1));
+      break;
     case "block":
       await cmdBlock(...args);
       break;
@@ -6547,7 +6677,7 @@ Commands:
   back                Go back in history
   forward             Go forward in history
   reload              Reload the current page
-  dom [selector]      Get compact DOM (--full for no truncation, --tokens=N for budget)
+  dom [selector]      Get compact DOM (--tokens=N to limit output)
   axtree [selector]   Get accessibility tree (semantic roles + names)
   axtree -i           Interactive elements with ref numbers (enables ref-based targeting)
   axtree -i --diff    Show only changes since last snapshot

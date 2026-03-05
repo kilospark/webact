@@ -41,7 +41,7 @@ webact dom
 | `back` | `webact back` |
 | `forward` | `webact forward` |
 | `reload` | `webact reload` |
-| `dom [selector] [--full]` | `webact dom` or `webact dom .results` |
+| `dom [selector] [--tokens=N]` | `webact dom` or `webact dom .results` or `webact dom --tokens=1000` |
 | `axtree [selector] [-i]` | `webact axtree` or `webact axtree -i` |
 | `observe` | `webact observe` |
 | `screenshot` | `webact screenshot` |
@@ -66,6 +66,7 @@ webact dom
 | `eval <js>` | `webact eval document.title` |
 | `cookies [get\|set\|clear\|delete]` | `webact cookies` or `webact cookies set name val` |
 | `console [show\|errors\|listen]` | `webact console` or `webact console errors` |
+| `network [capture\|show]` | `webact network capture 10 api` or `webact network show cloudwatch` |
 | `block <pattern>` | `webact block images css` or `webact block off` |
 | `viewport <w> <h>` | `webact viewport mobile` or `webact viewport 1024 768` |
 | `frames` | `webact frames` |
@@ -86,7 +87,7 @@ webact dom
 
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles (button, link, heading, textbox) and accessible names - better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
 
-**`axtree -i` (interactive mode):** Shows only actionable elements (buttons, links, inputs, etc.) as a flat numbered list. Most token-efficient way to see what you can interact with on a page - typically ~500 tokens vs ~4000 for full `dom`. After running `axtree -i`, use the ref numbers directly as selectors: `click 1`, `type 3 hello`. Refs are cached per URL and reused on revisits.
+**`axtree -i` (interactive mode):** Shows only actionable elements (buttons, links, inputs, etc.) as a flat numbered list. Most token-efficient way to see what you can interact with on a page. After running `axtree -i`, use the ref numbers directly as selectors: `click 1`, `type 3 hello`. Refs are cached per URL and reused on revisits.
 
 **`observe`:** Like `axtree -i` but formats each element as a ready-to-use command (e.g. `click 1`, `type 3 <text>`, `select 5 <value>`). Generates the ref map as a side effect.
 
@@ -97,6 +98,8 @@ webact dom
 **Mac keyboard note:** On macOS, app shortcuts documented as `Ctrl+Alt+<key>` (e.g., Google Docs heading shortcuts `Ctrl+Alt+1` through `Ctrl+Alt+6`) must be sent as `Meta+Alt+<key>` through CDP. Mac's Ctrl key is not the Command key these apps expect. Example: `press Meta+Alt+2` for Heading 2 in Google Docs.
 
 **`scroll` targets:** `up`/`down` (default 400px, or specify pixels), `top`/`bottom`, or a CSS selector to scroll an element into view. **Element-scoped:** `scroll <selector> <up|down|top|bottom> [px]` scrolls within a container element instead of the page — essential for apps with custom scroll containers (Google Docs, Slack).
+
+**`network` capture:** Captures XHR/fetch/API requests for a duration. `network capture 10` captures for 10 seconds. `network capture 15 api/query` captures for 15s, filtering to URLs containing "api/query". `network show` re-displays the last capture. `network show cloudwatch` filters saved results. Shows method, URL, status, type, timing, and POST body. Essential for diagnosing API issues in SPAs.
 
 **`block` patterns:** Block resource types (`images`, `css`, `fonts`, `media`, `scripts`) or URL substrings. Speeds up page loads. Use `block off` to disable.
 
@@ -165,15 +168,10 @@ If Chrome is not running, `launch` starts a new instance automatically and minim
 
 ## Token Efficiency
 
-The `dom` command returns a compact representation:
-- Scripts, styles, SVGs, hidden elements are stripped
-- Only interactive and structural tags are shown with their attributes
-- Whitespace is collapsed
-- Output is truncated to ~4000 chars by default
-
-Use `dom <selector>` to scope to a specific part of the page when you know where to look. This saves significant tokens on large pages.
-
-Use `--full` only when you need the complete DOM (rare).
+`dom` returns the full compact DOM with no truncation — scripts, styles, SVGs, and hidden elements are stripped, only interactive/structural tags shown. For large SPAs, manage output size with:
+- `dom <selector>` — scope to a specific part of the page
+- `dom --tokens=N` — cap output to ~N tokens
+- `axtree -i` — interactive elements only (most compact)
 
 ## Finding Elements
 
