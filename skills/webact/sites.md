@@ -9,8 +9,11 @@ Workarounds and patterns for apps with non-standard DOMs. Reference this when au
 - Scrolling: Use `scroll .kix-appview-editor down 500` — page-level scroll doesn't reach the document content
 
 ## Slack
-- Message composition: Click the message input, then use `keyboard` to type
-- Message extraction: Use `eval` to query Slack's virtual DOM — standard CSS selectors are unreliable due to virtual scrolling
+- **Channel switching:** Use `press Meta+k`, then `keyboard "channel-name"`, then `press Enter`. Sidebar treeitem clicks don't reliably trigger Slack's React router — they register as clicked but don't navigate.
+- **Message composition:** Click the message input (`[data-qa="message_input"] [role="textbox"]`), then use `keyboard` to type. For longer messages, use `paste`.
+- **Sending messages:** Click the send button directly with `click [data-qa="texty_send_button"]`. Don't rely on `Enter` (may insert newline depending on Slack settings) or on `axtree` disabled state (can report false positives for Slack buttons).
+- **Markdown formatting:** After `paste`, Slack may show a "Looks like your content contains markdown" banner. Click "Apply formatting" to convert, then send. The `*bold*` and `_italic_` syntax works.
+- **Message extraction:** Use `eval` to query Slack's virtual DOM — standard CSS selectors are unreliable due to virtual scrolling
 - Example: `eval [...document.querySelectorAll('[data-qa="virtual-list-item"]')].map(el => el.textContent).join('\n')`
 - `axtree` is a non-starter for Slack content: `-i` only shows chrome-level controls (tabs, search, sidebar slider), and full mode returns empty names for channels (Slack renders names via CSS/virtual DOM, not accessible text). Use `eval` for channel discovery and message reading.
 - The `navigate` auto-brief is useful for spotting unread badges (e.g. "DMs2", "Activity1")
