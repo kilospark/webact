@@ -213,7 +213,7 @@ For interactive elements, both tools offer a flat list with refs. webact's `axtr
 
 ## MCP Server
 
-webact also ships as an MCP server for Claude Desktop, ChatGPT Desktop, Cursor, and other MCP-compatible clients. Each webact command is exposed as an individual tool with full JSON schema.
+webact also ships as an MCP server for Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex, and other MCP-compatible clients. Each webact command is exposed as an individual tool with full JSON schema.
 
 ### Install (Rust binary — no Node.js required)
 
@@ -221,32 +221,26 @@ webact also ships as an MCP server for Claude Desktop, ChatGPT Desktop, Cursor, 
 curl -fsSL https://raw.githubusercontent.com/kilospark/webact/main/install.sh | sh
 ```
 
-Then add to your MCP client config:
-
-```json
-{
-  "mcpServers": {
-    "webact": {
-      "command": "webact-mcp"
-    }
-  }
-}
-```
+Downloads the `webact-mcp` binary and auto-configures any detected MCP clients (Claude Desktop, Claude Code, ChatGPT Desktop, Cursor, Windsurf, Cline, Codex).
 
 ### Install (Node.js)
+
+If you already have Node.js, add directly to your MCP client config:
 
 ```json
 {
   "mcpServers": {
     "webact": {
       "command": "npx",
-      "args": ["@kilospark/webact-mcp"]
+      "args": ["-y", "@kilospark/webact"]
     }
   }
 }
 ```
 
-Or if already installed globally (`npm install -g @kilospark/webact`):
+### Manual config
+
+If you installed via the curl script but need to add to a client manually:
 
 ```json
 {
@@ -256,6 +250,12 @@ Or if already installed globally (`npm install -g @kilospark/webact`):
     }
   }
 }
+```
+
+For Claude Code:
+
+```bash
+claude mcp add webact webact-mcp
 ```
 
 ## Requirements
