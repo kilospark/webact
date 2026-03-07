@@ -97,6 +97,29 @@ add_mcp_config() {
 echo ""
 echo "Configuring MCP clients..."
 
+# Claude Code (uses CLI, not a config file)
+if command -v claude >/dev/null 2>&1; then
+  if claude mcp get webact >/dev/null 2>&1; then
+    echo "  Claude Code: already configured"
+    CONFIGURED="${CONFIGURED}Claude Code, "
+  else
+    claude mcp add webact "$BINARY_PATH" 2>/dev/null && {
+      echo "  Claude Code: configured"
+      CONFIGURED="${CONFIGURED}Claude Code, "
+    } || echo "  Claude Code: failed to configure (try: claude mcp add webact $BINARY_PATH)"
+  fi
+fi
+
+# Cline (VSCode extension - check both Code and Cursor hosts)
+if [ "$PLATFORM" = "darwin" ]; then
+  add_mcp_config "$HOME/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json" "Cline (VSCode)"
+  add_mcp_config "$HOME/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json" "Cline (Cursor)"
+elif [ "$PLATFORM" = "linux" ]; then
+  XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+  add_mcp_config "$XDG_CONFIG/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json" "Cline (VSCode)"
+  add_mcp_config "$XDG_CONFIG/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json" "Cline (Cursor)"
+fi
+
 # macOS config paths
 if [ "$PLATFORM" = "darwin" ]; then
   APP_SUPPORT="$HOME/Library/Application Support"
@@ -104,10 +127,10 @@ if [ "$PLATFORM" = "darwin" ]; then
   add_mcp_config "$APP_SUPPORT/Claude/claude_desktop_config.json" "Claude Desktop"
   add_mcp_config "$APP_SUPPORT/ChatGPT/mcp.json" "ChatGPT Desktop"
 
-  # Cursor (macOS)
+  # Cursor
   add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
 
-  # Windsurf (macOS)
+  # Windsurf
   add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
 fi
 
@@ -118,10 +141,10 @@ if [ "$PLATFORM" = "linux" ]; then
   add_mcp_config "$XDG_CONFIG/Claude/claude_desktop_config.json" "Claude Desktop"
   add_mcp_config "$XDG_CONFIG/chatgpt/mcp.json" "ChatGPT Desktop"
 
-  # Cursor (Linux)
+  # Cursor
   add_mcp_config "$HOME/.cursor/mcp.json" "Cursor"
 
-  # Windsurf (Linux)
+  # Windsurf
   add_mcp_config "$HOME/.codeium/windsurf/mcp_config.json" "Windsurf"
 fi
 
