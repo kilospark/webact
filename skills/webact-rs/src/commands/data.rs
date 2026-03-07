@@ -16,7 +16,7 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
                 .cloned()
                 .unwrap_or_default();
             if cookies.is_empty() {
-                println!("No cookies.");
+                out!(ctx, "No cookies.");
             } else {
                 for c in cookies {
                     let name = c.get("name").and_then(Value::as_str).unwrap_or("");
@@ -38,7 +38,7 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
                     } else {
                         String::new()
                     };
-                    println!(
+                    out!(ctx,
                         "{}={} ({}{} {})",
                         name,
                         truncate(value, 60),
@@ -73,14 +73,14 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
                 json!({ "name": name, "value": value, "domain": domain, "path": "/" }),
             )
             .await?;
-            println!("Cookie set: {}={} ({})", name, truncate(&value, 40), domain);
+            out!(ctx, "Cookie set: {}={} ({})", name, truncate(&value, 40), domain);
             cdp.close().await;
         }
         "clear" => {
             let mut cdp = open_cdp(ctx).await?;
             prepare_cdp(ctx, &mut cdp).await?;
             cdp.send("Network.clearBrowserCookies", json!({})).await?;
-            println!("All cookies cleared.");
+            out!(ctx, "All cookies cleared.");
             cdp.close().await;
         }
         "delete" => {
@@ -105,7 +105,7 @@ pub(super) async fn cmd_cookies(ctx: &mut AppContext, args: &[String]) -> Result
                 json!({ "name": name, "domain": domain }),
             )
             .await?;
-            println!("Deleted cookie: {} ({})", name, domain);
+            out!(ctx, "Deleted cookie: {} ({})", name, domain);
             cdp.close().await;
         }
         _ => bail!("Usage: webact-rs cookies [get|set|clear|delete] [args]"),
@@ -164,9 +164,9 @@ pub(super) async fn cmd_console(ctx: &mut AppContext, action: Option<&str>) -> R
                 }
             }
             if logs.is_empty() {
-                println!("No console output captured (listened for 1s).");
+                out!(ctx, "No console output captured (listened for 1s).");
             } else {
-                println!("{}", logs.join("\n"));
+                out!(ctx, "{}", logs.join("\n"));
             }
             cdp.close().await;
         }
@@ -174,7 +174,7 @@ pub(super) async fn cmd_console(ctx: &mut AppContext, action: Option<&str>) -> R
             let mut cdp = open_cdp(ctx).await?;
             prepare_cdp(ctx, &mut cdp).await?;
             cdp.send("Runtime.enable", json!({})).await?;
-            println!("Listening for console output (Ctrl+C to stop)...");
+            out!(ctx, "Listening for console output (Ctrl+C to stop)...");
             loop {
                 let Some(event) = cdp.next_event(Duration::from_secs(60)).await? else {
                     continue;
@@ -195,7 +195,7 @@ pub(super) async fn cmd_console(ctx: &mut AppContext, action: Option<&str>) -> R
                         .map(console_arg_to_text)
                         .collect::<Vec<_>>()
                         .join(" ");
-                    println!("[{}] {}", event_type, truncate(&text, 500));
+                    out!(ctx, "[{}] {}", event_type, truncate(&text, 500));
                 } else if event.get("method").and_then(Value::as_str)
                     == Some("Runtime.exceptionThrown")
                 {
@@ -209,7 +209,7 @@ pub(super) async fn cmd_console(ctx: &mut AppContext, action: Option<&str>) -> R
                                 .and_then(Value::as_str)
                         })
                         .unwrap_or("Unknown error");
-                    println!("[exception] {}", truncate(desc, 500));
+                    out!(ctx, "[exception] {}", truncate(desc, 500));
                 }
             }
         }
@@ -232,7 +232,7 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
             let mut cdp = open_cdp(ctx).await?;
             prepare_cdp(ctx, &mut cdp).await?;
             cdp.send("Network.enable", json!({})).await?;
-            println!(
+            out!(ctx,
                 "Capturing network for {}s{}...",
                 duration,
                 filter
@@ -328,7 +328,7 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     .status
                     .map(|s| format!("[{}]", s))
                     .unwrap_or_else(|| "[pending]".to_string());
-                println!(
+                out!(ctx,
                     "{} {} {} ({}) +{}ms",
                     r.method,
                     truncate(&r.url, 150),
@@ -341,10 +341,10 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     r.time
                 );
                 if let Some(body) = &r.post_data {
-                    println!("  body: {}", truncate(body, 200));
+                    out!(ctx, "  body: {}", truncate(body, 200));
                 }
             }
-            println!("\n{} requests captured", requests.len());
+            out!(ctx, "\n{} requests captured", requests.len());
             fs::write(&log_file, serde_json::to_string_pretty(&requests)?)
                 .with_context(|| format!("failed writing {}", log_file.display()))?;
             cdp.close().await;
@@ -367,7 +367,7 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     .status
                     .map(|s| format!("[{}]", s))
                     .unwrap_or_else(|| "[pending]".to_string());
-                println!(
+                out!(ctx,
                     "{} {} {} ({}) +{}ms",
                     r.method,
                     truncate(&r.url, 150),
@@ -380,10 +380,10 @@ pub(super) async fn cmd_network(ctx: &mut AppContext, args: &[String]) -> Result
                     r.time
                 );
                 if let Some(body) = &r.post_data {
-                    println!("  body: {}", truncate(body, 200));
+                    out!(ctx, "  body: {}", truncate(body, 200));
                 }
             }
-            println!(
+            out!(ctx,
                 "\n{} requests{}",
                 filtered.len(),
                 filter
@@ -407,7 +407,7 @@ pub(super) async fn cmd_block(ctx: &mut AppContext, args: &[String]) -> Result<(
     if args.first().map(String::as_str) == Some("off") {
         state.block_patterns = None;
         ctx.save_session_state(&state)?;
-        println!("Request blocking disabled.");
+        out!(ctx, "Request blocking disabled.");
         return Ok(());
     }
 
@@ -437,7 +437,7 @@ pub(super) async fn cmd_block(ctx: &mut AppContext, args: &[String]) -> Result<(
     });
     ctx.save_session_state(&state)?;
     if has_ads {
-        println!(
+        out!(ctx,
             "Blocking: ads/trackers ({} patterns){}",
             ADBLOCK_PATTERNS.len(),
             if args.len() > 1 {
@@ -447,7 +447,7 @@ pub(super) async fn cmd_block(ctx: &mut AppContext, args: &[String]) -> Result<(
             }
         );
     } else {
-        println!(
+        out!(ctx,
             "Blocking: {}. Takes effect on next page load.",
             args.join(", ")
         );
@@ -493,7 +493,7 @@ pub(super) async fn cmd_viewport(
         }),
     )
     .await?;
-    println!(
+    out!(ctx,
         "Viewport set to {}x{} (dpr:{}{})",
         w,
         h,
@@ -509,7 +509,7 @@ pub(super) async fn cmd_frames(ctx: &mut AppContext) -> Result<()> {
     prepare_cdp(ctx, &mut cdp).await?;
     cdp.send("Page.enable", json!({})).await?;
     let tree = cdp.send("Page.getFrameTree", json!({})).await?;
-    print_frame_tree(tree.get("frameTree").unwrap_or(&Value::Null), 0);
+    print_frame_tree(&mut ctx.output, tree.get("frameTree").unwrap_or(&Value::Null), 0);
     cdp.close().await;
     Ok(())
 }
@@ -527,7 +527,7 @@ pub(super) async fn cmd_frame(
     if matches!(frame_id_or_selector, "main" | "top") {
         state.active_frame_id = None;
         ctx.save_session_state(&state)?;
-        println!("Switched to main frame.");
+        out!(ctx, "Switched to main frame.");
         return Ok(());
     }
 
@@ -580,7 +580,7 @@ pub(super) async fn cmd_frame(
     let frame = found.ok_or_else(|| anyhow!("Frame not found: {}", frame_id_or_selector))?;
     state.active_frame_id = Some(frame.0.clone());
     ctx.save_session_state(&state)?;
-    println!("Switched to frame: [{}] {}", frame.0, frame.1);
+    out!(ctx, "Switched to frame: [{}] {}", frame.0, frame.1);
     cdp.close().await;
     Ok(())
 }

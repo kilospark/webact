@@ -27,7 +27,7 @@ pub(crate) async fn cmd_focus(ctx: &mut AppContext, selector: &str) -> Result<()
     if let Some(err) = val.get("error").and_then(Value::as_str) {
         bail!("{err}");
     }
-    println!(
+    out!(ctx,
         "Focused <{}> \"{}\"",
         val.get("tag")
             .and_then(Value::as_str)
@@ -74,7 +74,7 @@ pub(crate) async fn cmd_clear(ctx: &mut AppContext, selector: &str) -> Result<()
     if let Some(err) = val.get("error").and_then(Value::as_str) {
         bail!("{err}");
     }
-    println!(
+    out!(ctx,
         "Cleared {} {}",
         val.get("tag")
             .and_then(Value::as_str)
@@ -105,7 +105,7 @@ pub(crate) async fn cmd_keyboard(ctx: &mut AppContext, text: &str) -> Result<()>
         )
         .await?;
     }
-    println!("OK keyboard \"{}\"", truncate(text, 50));
+    out!(ctx, "OK keyboard \"{}\"", truncate(text, 50));
     cdp.close().await;
     Ok(())
 }
@@ -140,7 +140,7 @@ pub(crate) async fn cmd_paste(ctx: &mut AppContext, text: &str) -> Result<()> {
     {
         bail!("{err}");
     }
-    println!("OK pasted \"{}\"", truncate(text, 50));
+    out!(ctx, "OK pasted \"{}\"", truncate(text, 50));
     cdp.close().await;
     Ok(())
 }
@@ -198,8 +198,8 @@ pub(crate) async fn cmd_select(
         .filter_map(Value::as_str)
         .map(ToString::to_string)
         .collect::<Vec<_>>();
-    println!("Selected: {}", selected.join(", "));
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "Selected: {}", selected.join(", "));
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -250,7 +250,7 @@ pub(crate) async fn cmd_upload(
     )
     .await?;
 
-    println!(
+    out!(ctx,
         "Uploaded {} file(s) to {}: {}",
         resolved.len(),
         selector,
@@ -286,12 +286,12 @@ pub(crate) async fn cmd_dialog(
     });
     ctx.save_session_state(&state)?;
     if prompt_text.is_empty() {
-        println!(
+        out!(ctx,
             "Dialog handler set: will {} the next dialog",
             if accept { "accept" } else { "dismiss" }
         );
     } else {
-        println!(
+        out!(ctx,
             "Dialog handler set: will {} the next dialog with text: \"{}\"",
             if accept { "accept" } else { "dismiss" },
             prompt_text

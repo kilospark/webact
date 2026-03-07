@@ -74,7 +74,7 @@ pub(crate) fn resource_type_url_patterns(resource_type: &str) -> Vec<String> {
     }
 }
 
-pub(crate) fn print_frame_tree(node: &Value, depth: usize) {
+pub(crate) fn print_frame_tree(buf: &mut String, node: &Value, depth: usize) {
     if node.is_null() {
         return;
     }
@@ -84,9 +84,9 @@ pub(crate) fn print_frame_tree(node: &Value, depth: usize) {
     let name = frame.get("name").and_then(Value::as_str).unwrap_or("");
     let url = frame.get("url").and_then(Value::as_str).unwrap_or("");
     if name.is_empty() {
-        println!("{}[{}] {}", indent, id, url);
+        let _ = writeln!(buf, "{}[{}] {}", indent, id, url);
     } else {
-        println!("{}[{}] name=\"{}\" {}", indent, id, name, url);
+        let _ = writeln!(buf, "{}[{}] name=\"{}\" {}", indent, id, name, url);
     }
     for child in node
         .get("childFrames")
@@ -94,7 +94,7 @@ pub(crate) fn print_frame_tree(node: &Value, depth: usize) {
         .cloned()
         .unwrap_or_default()
     {
-        print_frame_tree(&child, depth + 1);
+        print_frame_tree(buf, &child, depth + 1);
     }
 }
 

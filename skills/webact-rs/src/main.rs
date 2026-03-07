@@ -6,6 +6,7 @@ use reqwest::Client;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env;
+use std::fmt::Write as _;
 use std::fs;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
@@ -13,6 +14,13 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::time::{sleep, timeout};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+
+macro_rules! out {
+    ($ctx:expr, $($arg:tt)*) => {{
+        use std::fmt::Write;
+        let _ = writeln!($ctx.output, $($arg)*);
+    }};
+}
 
 mod commands;
 
@@ -35,6 +43,7 @@ struct AppContext {
     cdp_host: String,
     launch_browser_name: Option<String>,
     http: Client,
+    output: String,
 }
 
 impl AppContext {
@@ -49,7 +58,12 @@ impl AppContext {
             cdp_host: DEFAULT_CDP_HOST.to_string(),
             launch_browser_name: None,
             http,
+            output: String::new(),
         })
+    }
+
+    fn drain_output(&mut self) -> String {
+        std::mem::take(&mut self.output)
     }
 
     fn tmp_dir(&self) -> PathBuf {
@@ -346,6 +360,10 @@ async fn run() -> Result<()> {
         } else {
             run_command_file(&mut ctx).await?;
         }
+        let buffered = ctx.drain_output();
+        if !buffered.is_empty() {
+            print!("{buffered}");
+        }
         return Ok(());
     }
 
@@ -354,7 +372,12 @@ async fn run() -> Result<()> {
             .context("No active session. Run: webact-rs launch")?;
     }
 
-    commands::dispatch(&mut ctx, &command, &args).await
+    commands::dispatch(&mut ctx, &command, &args).await?;
+    let buffered = ctx.drain_output();
+    if !buffered.is_empty() {
+        print!("{buffered}");
+    }
+    Ok(())
 }
 
 async fn run_command_file(ctx: &mut AppContext) -> Result<()> {

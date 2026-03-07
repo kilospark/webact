@@ -29,9 +29,9 @@ pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<(
                 )
                 .await?;
             if let Some(v) = ser.pointer("/result/value").and_then(Value::as_str) {
-                println!("{v}");
+                out!(ctx, "{v}");
             } else {
-                println!(
+                out!(ctx,
                     "{}",
                     r.get("description")
                         .and_then(Value::as_str)
@@ -39,7 +39,7 @@ pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<(
                 );
             }
         } else {
-            println!(
+            out!(ctx,
                 "{}",
                 r.get("description")
                     .and_then(Value::as_str)
@@ -48,11 +48,11 @@ pub(crate) async fn cmd_eval(ctx: &mut AppContext, expression: &str) -> Result<(
         }
     } else if let Some(v) = r.get("value") {
         match v {
-            Value::String(s) => println!("{s}"),
-            _ => println!("{v}"),
+            Value::String(s) => out!(ctx, "{s}"),
+            _ => out!(ctx, "{v}"),
         }
     } else {
-        println!(
+        out!(ctx,
             "{}",
             r.get("description")
                 .and_then(Value::as_str)
@@ -68,11 +68,11 @@ pub(crate) async fn cmd_observe(ctx: &mut AppContext) -> Result<()> {
     prepare_cdp(ctx, &mut cdp).await?;
     let data = fetch_interactive_elements(ctx, &mut cdp).await?;
     if data.elements.is_empty() {
-        println!("(no interactive elements found)");
+        out!(ctx, "(no interactive elements found)");
         cdp.close().await;
         return Ok(());
     }
-    let mut out = String::new();
+    let mut observe_buf = String::new();
     for el in &data.elements {
         let desc = if el.name.is_empty() {
             el.role.clone()
@@ -85,9 +85,9 @@ pub(crate) async fn cmd_observe(ctx: &mut AppContext) -> Result<()> {
             "slider" | "spinbutton" => format!("type {} <value>", el.ref_id),
             _ => format!("click {}", el.ref_id),
         };
-        out.push_str(&format!("[{}] {}  — {}\n", el.ref_id, cmd, desc));
+        observe_buf.push_str(&format!("[{}] {}  — {}\n", el.ref_id, cmd, desc));
     }
-    println!("{}", out.trim_end());
+    out!(ctx, "{}", observe_buf.trim_end());
     cdp.close().await;
     Ok(())
 }
@@ -165,14 +165,14 @@ pub(crate) async fn cmd_find(ctx: &mut AppContext, query: &str) -> Result<()> {
     } else {
         "low"
     };
-    println!(
+    out!(ctx,
         "Best: [{}] {} \"{}\" ({} confidence, score:{:.2})",
         best_ref, best_el.role, best_el.name, confidence, best_score
     );
     if top.len() > 1 {
-        println!("Also:");
+        out!(ctx, "Also:");
         for (r, s, e) in top.iter().skip(1) {
-            println!("  [{}] {} \"{}\" ({:.2})", r, e.role, e.name, s);
+            out!(ctx, "  [{}] {} \"{}\" ({:.2})", r, e.role, e.name, s);
         }
     }
     cdp.close().await;

@@ -39,12 +39,12 @@ pub(crate) async fn cmd_wait_for(
     if !val.get("found").and_then(Value::as_bool).unwrap_or(false) {
         bail!("Element not found after {}ms: {}", timeout, selector);
     }
-    println!(
+    out!(ctx,
         "Found {} \"{}\"",
         val.get("tag").and_then(Value::as_str).unwrap_or("element"),
         val.get("text").and_then(Value::as_str).unwrap_or_default()
     );
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -83,7 +83,7 @@ pub(crate) async fn cmd_wait_for_nav(ctx: &mut AppContext, timeout_ms: Option<&s
                 .unwrap_or("unknown")
         );
     }
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -167,7 +167,7 @@ pub(crate) async fn cmd_scroll(ctx: &mut AppContext, args: &[String]) -> Result<
         {
             bail!("{err}");
         }
-        println!(
+        out!(ctx,
             "Scrolled {} within {} {}",
             result
                 .pointer("/result/value/dir")
@@ -197,7 +197,7 @@ pub(crate) async fn cmd_scroll(ctx: &mut AppContext, args: &[String]) -> Result<
         {
             bail!("{err}");
         }
-        println!(
+        out!(ctx,
             "Scrolled to {} {}",
             result
                 .pointer("/result/value/tag")
@@ -208,7 +208,7 @@ pub(crate) async fn cmd_scroll(ctx: &mut AppContext, args: &[String]) -> Result<
     }
 
     sleep(Duration::from_millis(100)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }

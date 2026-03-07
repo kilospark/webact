@@ -20,9 +20,9 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
             json!({ "type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1 }),
         )
         .await?;
-        println!("Clicked at ({x}, {y})");
+        out!(ctx, "Clicked at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -50,13 +50,13 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
             json!({ "type": "mouseReleased", "x": loc.x, "y": loc.y, "button": "left", "clickCount": 1 }),
         )
         .await?;
-        println!(
+        out!(ctx,
             "Clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -69,9 +69,9 @@ pub(crate) async fn cmd_double_click_dispatch(ctx: &mut AppContext, args: &[Stri
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         dispatch_double_click(&mut cdp, x, y).await?;
-        println!("Double-clicked at ({x}, {y})");
+        out!(ctx, "Double-clicked at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -84,13 +84,13 @@ pub(crate) async fn cmd_double_click_dispatch(ctx: &mut AppContext, args: &[Stri
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
         dispatch_double_click(&mut cdp, loc.x, loc.y).await?;
-        println!(
+        out!(ctx,
             "Double-clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -103,9 +103,9 @@ pub(crate) async fn cmd_right_click_dispatch(ctx: &mut AppContext, args: &[Strin
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         dispatch_right_click(&mut cdp, x, y).await?;
-        println!("Right-clicked at ({x}, {y})");
+        out!(ctx, "Right-clicked at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -118,13 +118,13 @@ pub(crate) async fn cmd_right_click_dispatch(ctx: &mut AppContext, args: &[Strin
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
         dispatch_right_click(&mut cdp, loc.x, loc.y).await?;
-        println!(
+        out!(ctx,
             "Right-clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -141,9 +141,9 @@ pub(crate) async fn cmd_hover_dispatch(ctx: &mut AppContext, args: &[String]) ->
             json!({ "type": "mouseMoved", "x": x, "y": y }),
         )
         .await?;
-        println!("Hovered at ({x}, {y})");
+        out!(ctx, "Hovered at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -160,13 +160,13 @@ pub(crate) async fn cmd_hover_dispatch(ctx: &mut AppContext, args: &[String]) ->
             json!({ "type": "mouseMoved", "x": loc.x, "y": loc.y }),
         )
         .await?;
-        println!(
+        out!(ctx,
             "Hovered {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -179,9 +179,9 @@ pub(crate) async fn cmd_double_click(ctx: &mut AppContext, selector: &str) -> Re
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
     dispatch_double_click(&mut cdp, loc.x, loc.y).await?;
-    println!("Double-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(ctx, "Double-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
     sleep(Duration::from_millis(150)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -191,9 +191,9 @@ pub(crate) async fn cmd_right_click(ctx: &mut AppContext, selector: &str) -> Res
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
     dispatch_right_click(&mut cdp, loc.x, loc.y).await?;
-    println!("Right-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(ctx, "Right-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
     sleep(Duration::from_millis(150)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -207,9 +207,9 @@ pub(crate) async fn cmd_hover(ctx: &mut AppContext, selector: &str) -> Result<()
         json!({ "type": "mouseMoved", "x": loc.x, "y": loc.y }),
     )
     .await?;
-    println!("Hovered {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(ctx, "Hovered {} \"{}\"", loc.tag.to_lowercase(), loc.text);
     sleep(Duration::from_millis(150)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -247,12 +247,12 @@ pub(crate) async fn cmd_drag(
         json!({ "type": "mouseReleased", "x": to.x, "y": to.y, "button": "left", "clickCount": 1 }),
     )
     .await?;
-    println!(
+    out!(ctx,
         "Dragged {} to {}",
         from.tag.to_lowercase(),
         to.tag.to_lowercase()
     );
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }

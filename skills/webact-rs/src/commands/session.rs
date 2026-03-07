@@ -29,12 +29,12 @@ pub(super) async fn cmd_download(ctx: &mut AppContext, args: &[String]) -> Resul
                 }),
             )
             .await?;
-            println!("Downloads will be saved to: {}", dir.display());
+            out!(ctx, "Downloads will be saved to: {}", dir.display());
             cdp.close().await;
         }
         "list" => {
             if !download_dir.exists() {
-                println!("No downloads directory.");
+                out!(ctx, "No downloads directory.");
                 return Ok(());
             }
             let mut files = fs::read_dir(&download_dir)
@@ -43,7 +43,7 @@ pub(super) async fn cmd_download(ctx: &mut AppContext, args: &[String]) -> Resul
                 .collect::<Vec<_>>();
             files.sort_by_key(|e| e.file_name());
             if files.is_empty() {
-                println!("No downloaded files.");
+                out!(ctx, "No downloaded files.");
             } else {
                 for entry in files {
                     let path = entry.path();
@@ -55,7 +55,7 @@ pub(super) async fn cmd_download(ctx: &mut AppContext, args: &[String]) -> Resul
                     let stat = fs::metadata(&path)
                         .with_context(|| format!("failed stat {}", path.display()))?;
                     let size = human_size(stat.len());
-                    println!("{} ({})", name, size);
+                    out!(ctx, "{} ({})", name, size);
                 }
             }
         }
@@ -71,7 +71,7 @@ pub(super) async fn cmd_activate(ctx: &mut AppContext) -> Result<()> {
         .or_else(|| find_browser().map(|b| b.name))
         .ok_or_else(|| anyhow!("Cannot determine browser."))?;
     activate_browser(&browser_name)?;
-    println!("Brought {} to front.", browser_name);
+    out!(ctx, "Brought {} to front.", browser_name);
     Ok(())
 }
 
@@ -82,7 +82,7 @@ pub(super) async fn cmd_minimize(ctx: &mut AppContext) -> Result<()> {
         .or_else(|| find_browser().map(|b| b.name))
         .ok_or_else(|| anyhow!("Cannot determine browser."))?;
     minimize_browser(&browser_name)?;
-    println!("Minimized {}.", browser_name);
+    out!(ctx, "Minimized {}.", browser_name);
     Ok(())
 }
 
@@ -91,9 +91,9 @@ pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[Strin
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         human_click(&mut cdp, x, y).await?;
-        println!("Human-clicked at ({x}, {y})");
+        out!(ctx, "Human-clicked at ({x}, {y})");
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -106,13 +106,13 @@ pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[Strin
         prepare_cdp(ctx, &mut cdp).await?;
         let loc = locate_element_by_text(ctx, &mut cdp, &text).await?;
         human_click(&mut cdp, loc.x, loc.y).await?;
-        println!(
+        out!(ctx,
             "Human-clicked {} \"{}\" (text match)",
             loc.tag.to_lowercase(),
             loc.text
         );
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         cdp.close().await;
         return Ok(());
     }
@@ -125,9 +125,9 @@ pub(super) async fn cmd_human_click(ctx: &mut AppContext, selector: &str) -> Res
     prepare_cdp(ctx, &mut cdp).await?;
     let loc = locate_element(ctx, &mut cdp, selector).await?;
     human_click(&mut cdp, loc.x, loc.y).await?;
-    println!("Human-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(ctx, "Human-clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
     sleep(Duration::from_millis(150)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -148,7 +148,7 @@ pub(super) async fn cmd_human_type(ctx: &mut AppContext, selector: &str, text: &
         bail!("{err}");
     }
     human_type_text(&mut cdp, text, false).await?;
-    println!("Human-typed \"{}\" into {}", truncate(text, 50), selector);
+    out!(ctx, "Human-typed \"{}\" into {}", truncate(text, 50), selector);
     cdp.close().await;
     Ok(())
 }
@@ -183,7 +183,7 @@ pub(super) async fn cmd_lock(ctx: &mut AppContext, ttl_seconds: Option<&str>) ->
         },
     );
     save_tab_locks(ctx, &locks)?;
-    println!("Tab {} locked for {}s by session {}", tab_id, ttl, sid);
+    out!(ctx, "Tab {} locked for {}s by session {}", tab_id, ttl, sid);
     Ok(())
 }
 
@@ -196,14 +196,14 @@ pub(super) async fn cmd_unlock(ctx: &mut AppContext) -> Result<()> {
     let mut locks = load_tab_locks(ctx)?;
     let lock = locks.get(&tab_id).cloned();
     match lock {
-        None => println!("Tab is not locked."),
+        None => out!(ctx, "Tab is not locked."),
         Some(l) if l.session_id != sid => {
             bail!("Tab is locked by session {}, not yours.", l.session_id)
         }
         Some(_) => {
             locks.remove(&tab_id);
             save_tab_locks(ctx, &locks)?;
-            println!("Tab {} unlocked.", tab_id);
+            out!(ctx, "Tab {} unlocked.", tab_id);
         }
     }
     Ok(())

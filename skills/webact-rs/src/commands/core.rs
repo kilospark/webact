@@ -9,7 +9,7 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
             ctx.cdp_port = saved_port;
             if get_debug_tabs(ctx).await.is_ok() {
                 ctx.launch_browser_name = find_browser().map(|b| b.name);
-                println!("Browser already running.");
+                out!(ctx, "Browser already running.");
                 return cmd_connect(ctx).await;
             }
         }
@@ -63,7 +63,7 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
         if get_debug_tabs(ctx).await.is_ok() {
             fs::write(&port_file, ctx.cdp_port.to_string())
                 .with_context(|| format!("failed writing {}", port_file.display()))?;
-            println!("{} launched successfully.", browser.name);
+            out!(ctx, "{} launched successfully.", browser.name);
             return cmd_connect(ctx).await;
         }
     }
@@ -93,8 +93,8 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
     fs::write(ctx.last_session_file(), &session_id)
         .context("failed writing last session pointer")?;
 
-    println!("Session: {session_id}");
-    println!("Command file: {}", ctx.command_file(&session_id).display());
+    out!(ctx, "Session: {session_id}");
+    out!(ctx, "Command file: {}", ctx.command_file(&session_id).display());
     Ok(())
 }
 
@@ -118,7 +118,7 @@ pub(super) async fn cmd_navigate(ctx: &mut AppContext, url: &str) -> Result<()> 
     cdp.send("Page.navigate", json!({ "url": target_url }))
         .await?;
     wait_for_ready_state_complete(&mut cdp, Duration::from_secs(15)).await?;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -133,7 +133,7 @@ pub(super) async fn cmd_dom(
     prepare_cdp(ctx, &mut cdp).await?;
     let context_id = get_frame_context_id(ctx, &mut cdp).await?;
     let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
-    let mut output = result
+    let mut dom_output = result
         .pointer("/result/value")
         .and_then(Value::as_str)
         .unwrap_or_default()
@@ -141,17 +141,17 @@ pub(super) async fn cmd_dom(
 
     if max_tokens > 0 {
         let char_budget = max_tokens.saturating_mul(4);
-        if output.len() > char_budget {
-            let boundary = output.floor_char_boundary(char_budget);
-            output = format!(
+        if dom_output.len() > char_budget {
+            let boundary = dom_output.floor_char_boundary(char_budget);
+            dom_output = format!(
                 "{}\n... (truncated to ~{} tokens)",
-                &output[..boundary],
+                &dom_output[..boundary],
                 max_tokens
             );
         }
     }
 
-    println!("{output}");
+    out!(ctx, "{dom_output}");
     cdp.close().await;
     Ok(())
 }
@@ -170,59 +170,59 @@ pub(super) async fn cmd_axtree_interactive(
         if let (Some(prev), Some(curr)) = (state.prev_elements, state.current_elements) {
             let diff = diff_elements(&prev, &curr);
             if diff.0.is_empty() && diff.1.is_empty() && diff.2.is_empty() {
-                println!("(no changes since last snapshot)");
+                out!(ctx, "(no changes since last snapshot)");
             } else {
-                let mut out = String::new();
+                let mut diff_buf = String::new();
                 if !diff.0.is_empty() {
-                    out.push_str("ADDED:\n");
+                    diff_buf.push_str("ADDED:\n");
                     for e in &diff.0 {
-                        out.push_str(&format!("  + [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
+                        diff_buf.push_str(&format!("  + [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
                     }
                 }
                 if !diff.1.is_empty() {
-                    out.push_str("REMOVED:\n");
+                    diff_buf.push_str("REMOVED:\n");
                     for e in &diff.1 {
-                        out.push_str(&format!("  - [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
+                        diff_buf.push_str(&format!("  - [{}] {} \"{}\"\n", e.ref_id, e.role, e.name));
                     }
                 }
                 if !diff.2.is_empty() {
-                    out.push_str("CHANGED:\n");
+                    diff_buf.push_str("CHANGED:\n");
                     for (from, to) in &diff.2 {
-                        out.push_str(&format!(
+                        diff_buf.push_str(&format!(
                             "  ~ [{}] {} \"{}\" (was: \"{}\")\n",
                             to.ref_id, to.role, to.name, from.name
                         ));
                     }
                 }
-                out.push_str(&format!(
+                diff_buf.push_str(&format!(
                     "({} added, {} removed, {} changed)",
                     diff.0.len(),
                     diff.1.len(),
                     diff.2.len()
                 ));
-                println!("{}", out.trim_end());
+                out!(ctx, "{}", diff_buf.trim_end());
             }
         } else {
-            println!("(no previous snapshot to diff against)");
-            println!("{}", data.output);
+            out!(ctx, "(no previous snapshot to diff against)");
+            out!(ctx, "{}", data.output);
         }
         cdp.close().await;
         return Ok(());
     }
 
-    let mut output = data.output;
+    let mut axtree_output = data.output;
     if max_tokens > 0 {
         let char_budget = max_tokens.saturating_mul(4);
-        if output.len() > char_budget {
-            let boundary = output.floor_char_boundary(char_budget);
-            output = format!(
+        if axtree_output.len() > char_budget {
+            let boundary = axtree_output.floor_char_boundary(char_budget);
+            axtree_output = format!(
                 "{}\n... (truncated to ~{} tokens)",
-                &output[..boundary],
+                &axtree_output[..boundary],
                 max_tokens
             );
         }
     }
-    println!("{output}");
+    out!(ctx, "{axtree_output}");
     cdp.close().await;
     Ok(())
 }
@@ -252,10 +252,10 @@ pub(super) async fn cmd_axtree_full(ctx: &mut AppContext, selector: Option<&str>
                 json!({ "objectId": object_id }),
             )
             .await?;
-        println!("{}", serde_json::to_string_pretty(&result)?);
+        out!(ctx, "{}", serde_json::to_string_pretty(&result)?);
     } else {
         let result = cdp.send("Accessibility.getFullAXTree", json!({})).await?;
-        println!("{}", serde_json::to_string_pretty(&result)?);
+        out!(ctx, "{}", serde_json::to_string_pretty(&result)?);
     }
 
     cdp.send("Accessibility.disable", json!({})).await?;
@@ -285,9 +285,9 @@ pub(super) async fn cmd_click(ctx: &mut AppContext, selector: &str) -> Result<()
     )
     .await?;
 
-    println!("Clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
+    out!(ctx, "Clicked {} \"{}\"", loc.tag.to_lowercase(), loc.text);
     sleep(Duration::from_millis(150)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -325,7 +325,7 @@ pub(super) async fn cmd_type(ctx: &mut AppContext, selector: &str, text: &str) -
         .await?;
     }
 
-    println!("Typed \"{}\" into {selector}", truncate(text, 50));
+    out!(ctx, "Typed \"{}\" into {selector}", truncate(text, 50));
     cdp.close().await;
     Ok(())
 }
@@ -370,10 +370,10 @@ pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
         )
         .await?;
 
-        println!("OK press {key}");
+        out!(ctx, "OK press {key}");
         if matches!(main_key.to_lowercase().as_str(), "enter" | "tab" | "escape") {
             sleep(Duration::from_millis(150)).await;
-            println!("{}", get_page_brief(&mut cdp).await?);
+            out!(ctx, "{}", get_page_brief(&mut cdp).await?);
         }
 
         cdp.close().await;
@@ -406,10 +406,10 @@ pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
     )
     .await?;
 
-    println!("OK press {key}");
+    out!(ctx, "OK press {key}");
     if matches!(key.to_lowercase().as_str(), "enter" | "tab" | "escape") {
         sleep(Duration::from_millis(150)).await;
-        println!("{}", get_page_brief(&mut cdp).await?);
+        out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     }
 
     cdp.close().await;
@@ -430,7 +430,7 @@ pub(super) async fn cmd_tabs(ctx: &mut AppContext) -> Result<()> {
         .collect::<Vec<_>>();
 
     if owned.is_empty() {
-        println!("No tabs owned by this session.");
+        out!(ctx, "No tabs owned by this session.");
         return Ok(());
     }
 
@@ -440,7 +440,7 @@ pub(super) async fn cmd_tabs(ctx: &mut AppContext) -> Result<()> {
         } else {
             ""
         };
-        println!(
+        out!(ctx,
             "[{}] {} - {}{}",
             tab.id,
             tab.title.unwrap_or_else(|| "(untitled)".to_string()),
@@ -469,7 +469,7 @@ pub(super) async fn cmd_tab(ctx: &mut AppContext, tab_id: &str) -> Result<()> {
     ctx.save_session_state(&state)?;
 
     http_put_text(ctx, &format!("/json/activate/{tab_id}")).await?;
-    println!(
+    out!(ctx,
         "Switched to tab: {}",
         tab.title
             .or(tab.url)
@@ -485,7 +485,7 @@ pub(super) async fn cmd_new_tab(ctx: &mut AppContext, url: Option<&str>) -> Resu
     state.active_tab_id = Some(new_tab.id.clone());
     ctx.save_session_state(&state)?;
 
-    println!(
+    out!(ctx,
         "New tab: [{}] {}",
         new_tab.id,
         new_tab.url.unwrap_or_else(|| "about:blank".to_string())
@@ -505,11 +505,11 @@ pub(super) async fn cmd_close(ctx: &mut AppContext) -> Result<()> {
     state.active_tab_id = state.tabs.last().cloned();
     ctx.save_session_state(&state)?;
 
-    println!("Closed tab {tab_id}");
+    out!(ctx, "Closed tab {tab_id}");
     if let Some(active) = state.active_tab_id {
-        println!("Active tab is now: {active}");
+        out!(ctx, "Active tab is now: {active}");
     } else {
-        println!("No tabs remaining in this session.");
+        out!(ctx, "No tabs remaining in this session.");
     }
 
     Ok(())
@@ -544,7 +544,7 @@ pub(super) async fn cmd_back(ctx: &mut AppContext) -> Result<()> {
     )
     .await?;
     sleep(Duration::from_millis(500)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -578,7 +578,7 @@ pub(super) async fn cmd_forward(ctx: &mut AppContext) -> Result<()> {
     )
     .await?;
     sleep(Duration::from_millis(500)).await;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -588,7 +588,7 @@ pub(super) async fn cmd_reload(ctx: &mut AppContext) -> Result<()> {
     prepare_cdp(ctx, &mut cdp).await?;
     cdp.send("Page.reload", json!({})).await?;
     wait_for_ready_state_complete(&mut cdp, Duration::from_secs(15)).await?;
-    println!("{}", get_page_brief(&mut cdp).await?);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
 }
@@ -614,7 +614,7 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
         .tmp_dir()
         .join(format!("webact-rs-screenshot-{sid}.png"));
     fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
-    println!("Screenshot saved to {}", out.display());
+    out!(ctx, "Screenshot saved to {}", out.display());
     cdp.close().await;
     Ok(())
 }
@@ -646,7 +646,7 @@ pub(super) async fn cmd_pdf(ctx: &mut AppContext, output_path: Option<&str>) -> 
         .map(PathBuf::from)
         .unwrap_or_else(|| ctx.tmp_dir().join(format!("webact-rs-page-{sid}.pdf")));
     fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
-    println!("PDF saved to {}", out.display());
+    out!(ctx, "PDF saved to {}", out.display());
     cdp.close().await;
     Ok(())
 }
