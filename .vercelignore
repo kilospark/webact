@@ -1,0 +1,7 @@
+target
+src
+docs
+.git
+.github
+Cargo.toml
+Cargo.lock
