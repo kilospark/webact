@@ -1,7 +1,7 @@
 {
   "name": "webact",
   "description": "Control Chrome via raw CDP - browse the web, interact with pages, accomplish goals through a perceive-act loop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": {
     "name": "kilospark"
   },
