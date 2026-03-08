@@ -4,13 +4,9 @@ set -e
 REPO="kilospark/webact"
 BINARY="webact-mcp"
 
-# Use INSTALL_DIR if set, otherwise try /usr/local/bin, fall back to ~/.local/bin
-if [ -n "$INSTALL_DIR" ]; then
-  : # user specified
-elif [ -w /usr/local/bin ]; then
+# Use INSTALL_DIR if set, otherwise default to /usr/local/bin
+if [ -z "$INSTALL_DIR" ]; then
   INSTALL_DIR="/usr/local/bin"
-else
-  INSTALL_DIR="$HOME/.local/bin"
 fi
 
 # Detect OS and architecture
@@ -54,10 +50,12 @@ mkdir -p "$INSTALL_DIR"
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
-elif sudo -n true 2>/dev/null; then
-  sudo mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
+elif [ -e /dev/tty ]; then
+  # Terminal available — prompt for sudo (works even when piped from curl)
+  echo "Need admin access to install to ${INSTALL_DIR}."
+  sudo mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}" < /dev/tty
 else
-  # sudo needs a password but no TTY (e.g. piped from curl) — fall back
+  # No terminal at all (CI, cron, etc.) — fall back to user dir
   INSTALL_DIR="$HOME/.local/bin"
   mkdir -p "$INSTALL_DIR"
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
@@ -82,12 +80,35 @@ for other_dir in /usr/local/bin "$HOME/.local/bin"; do
   fi
 done
 
-# Warn if install dir is not in PATH
+# Auto-add install dir to PATH in shell rc if needed
 case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
-  *) echo "WARNING: ${INSTALL_DIR} is not in your PATH. Add it with:"
-     echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
-     echo "Then restart your shell or add it to ~/.bashrc / ~/.zshrc" ;;
+  *)
+    PATH_LINE="export PATH=\"${INSTALL_DIR}:\$PATH\""
+    # Detect shell rc file
+    if [ -f "$HOME/.zshrc" ]; then
+      RC_FILE="$HOME/.zshrc"
+    elif [ -f "$HOME/.bashrc" ]; then
+      RC_FILE="$HOME/.bashrc"
+    elif [ -f "$HOME/.bash_profile" ]; then
+      RC_FILE="$HOME/.bash_profile"
+    else
+      RC_FILE=""
+    fi
+    if [ -n "$RC_FILE" ]; then
+      if ! grep -q "${INSTALL_DIR}" "$RC_FILE" 2>/dev/null; then
+        echo "" >> "$RC_FILE"
+        echo "# Added by webact installer" >> "$RC_FILE"
+        echo "$PATH_LINE" >> "$RC_FILE"
+        echo "Added ${INSTALL_DIR} to PATH in ${RC_FILE}"
+      fi
+    else
+      echo "WARNING: ${INSTALL_DIR} is not in your PATH. Add it with:"
+      echo "  $PATH_LINE"
+    fi
+    # Also update current session
+    export PATH="${INSTALL_DIR}:$PATH"
+    ;;
 esac
 
 # --- Configure MCP clients ---
