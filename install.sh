@@ -53,17 +53,15 @@ mkdir -p "$INSTALL_DIR"
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
   mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}"
-elif [ -e /dev/tty ]; then
-  # Terminal available — prompt for sudo (works even when piped from curl)
-  echo "Need admin access to install to ${INSTALL_DIR}."
+elif [ -e /dev/tty ] && sudo -v < /dev/tty 2>/dev/null; then
   sudo mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}" < /dev/tty
   sudo mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}" < /dev/tty
 else
-  # No terminal at all (CI, cron, etc.) — fall back to user dir
   INSTALL_DIR="$HOME/.local/bin"
   mkdir -p "$INSTALL_DIR"
   mv "$TMPDIR/${ASSET}" "${INSTALL_DIR}/${BINARY}"
   mv "$TMPDIR/${CLI_ASSET}" "${INSTALL_DIR}/${CLI_BINARY}"
+  echo "No admin access — installing to ${INSTALL_DIR} instead."
 fi
 
 chmod +x "${INSTALL_DIR}/${BINARY}" "${INSTALL_DIR}/${CLI_BINARY}"
