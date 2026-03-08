@@ -253,7 +253,11 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
     match command {
         // Single URL arg
         "navigate" => {
-            vec_from_opt_str(arguments, "url")
+            let mut args = vec_from_opt_str(arguments, "url");
+            if arguments.get("no_dismiss").and_then(Value::as_bool).unwrap_or(false) {
+                args.push("--no-dismiss".to_string());
+            }
+            args
         }
         // Read: optional selector, optional --tokens=N
         "read" | "text" => {

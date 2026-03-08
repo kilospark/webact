@@ -98,7 +98,7 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
     Ok(())
 }
 
-pub(super) async fn cmd_navigate(ctx: &mut AppContext, url: &str) -> Result<()> {
+pub(super) async fn cmd_navigate(ctx: &mut AppContext, url: &str, dismiss: bool) -> Result<()> {
     let target_url = if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()
     } else {
@@ -118,6 +118,13 @@ pub(super) async fn cmd_navigate(ctx: &mut AppContext, url: &str) -> Result<()> 
     cdp.send("Page.navigate", json!({ "url": target_url }))
         .await?;
     wait_for_ready_state_complete(&mut cdp, Duration::from_secs(15)).await?;
+
+    if dismiss {
+        sleep(Duration::from_millis(300)).await;
+        let _ = runtime_evaluate(&mut cdp, DISMISS_POPUPS_SCRIPT, true, false).await;
+        sleep(Duration::from_millis(200)).await;
+    }
+
     out!(ctx, "{}", get_page_brief(&mut cdp).await?);
     cdp.close().await;
     Ok(())
@@ -766,7 +773,7 @@ pub(super) async fn cmd_search(
     };
 
     // Navigate to search results
-    cmd_navigate(ctx, &search_url).await?;
+    cmd_navigate(ctx, &search_url, true).await?;
     // Clear the navigate brief — we'll return read output instead
     ctx.output.clear();
 

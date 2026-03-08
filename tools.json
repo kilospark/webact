@@ -10,11 +10,12 @@
   },
   {
     "name": "webact_navigate",
-    "description": "Navigate to a URL. Auto-prints a compact page summary showing URL, title, inputs, buttons, and links.",
+    "description": "Navigate to a URL. Auto-dismisses cookie/popup banners. Auto-prints a compact page summary showing URL, title, inputs, buttons, and links.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "url": { "type": "string", "description": "URL to navigate to (https:// prefix added if missing)" }
+        "url": { "type": "string", "description": "URL to navigate to (https:// prefix added if missing)" },
+        "no_dismiss": { "type": "boolean", "description": "Skip auto-dismissing cookie/popup banners (default: false)" }
       },
       "required": ["url"]
     }

@@ -18,7 +18,12 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             if args.is_empty() {
                 bail!("Usage: webact navigate <url>");
             }
-            cmd_navigate(ctx, &args.join(" ")).await
+            let no_dismiss = args.iter().any(|a| a == "--no-dismiss");
+            let url_parts: Vec<&str> = args.iter()
+                .filter(|a| *a != "--no-dismiss")
+                .map(String::as_str)
+                .collect();
+            cmd_navigate(ctx, &url_parts.join(" "), !no_dismiss).await
         }
         "dom" => {
             let mut max_tokens = 0usize;

@@ -457,3 +457,42 @@ pub const AXTREE_INTERACTIVE_SCRIPT: &str = r#"
   return out;
 })()
 "#;
+
+pub const DISMISS_POPUPS_SCRIPT: &str = r#"(function() {
+    const selectors = [
+        '#onetrust-accept-btn-handler',
+        '#CookieBoxSaveButton',
+        '[data-testid="cookie-policy-manage-dialog-accept-button"]',
+        '.cc-accept', '.cc-dismiss',
+        '#accept-cookies', '#cookie-accept',
+        '#cookie-consent-accept', '#cookies-accept',
+        '[data-cookiefirst-action="accept"]',
+        '.js-cookie-consent-agree',
+        '#truste-consent-button',
+        '#didomi-notice-agree-button',
+    ];
+    for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) { el.click(); return 'dismissed:' + sel; }
+    }
+    const textPatterns = [
+        /^accept\s*(all|cookies)?$/i,
+        /^(i\s+)?agree$/i,
+        /^got\s*it$/i,
+        /^(ok|okay)$/i,
+        /^allow\s*(all|cookies)?$/i,
+        /^close$/i,
+    ];
+    const buttons = document.querySelectorAll('button, [role="button"], a.button, a.btn');
+    for (const btn of buttons) {
+        const text = (btn.textContent || '').trim();
+        if (text.length > 30) continue;
+        for (const pat of textPatterns) {
+            if (pat.test(text) && btn.offsetParent !== null) {
+                btn.click();
+                return 'dismissed:text:' + text;
+            }
+        }
+    }
+    return 'none';
+})()"#;
