@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 BINARY="webact-mcp"
 CLI_BINARY="webact"
@@ -31,8 +30,9 @@ done
 
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
   if [ -f "$rc" ] && grep -q "# Added by webact installer" "$rc" 2>/dev/null; then
-    sed -i.bak '/# Added by webact installer/,+1d' "$rc" 2>/dev/null || \
-      sed -i '' '/# Added by webact installer/{N;d;}' "$rc"
+    # Remove the blank line, comment, and export line added by installer
+    sed -i.bak -e '/^$/N;/\n# Added by webact installer/{N;d;}' "$rc" 2>/dev/null || \
+      sed -i '' -e '/^[[:space:]]*$/{N;/# Added by webact installer/{N;d;}}' "$rc"
     rm -f "${rc}.bak"
     echo "Removed PATH entry from $rc"
     REMOVED="${REMOVED}PATH, "
@@ -53,17 +53,32 @@ remove_mcp_config() {
     return
   fi
 
-  sed -i.bak 's/"webact"[[:space:]]*:[[:space:]]*{[^}]*}[[:space:]]*,\?//g' "$config_file" 2>/dev/null || \
-    sed -i '' 's/"webact"[[:space:]]*:[[:space:]]*\{[^}]*\}[[:space:]]*,\{0,1\}//g' "$config_file"
-  rm -f "${config_file}.bak"
-  echo "  $client_name: removed"
-  REMOVED="${REMOVED}${client_name}, "
+  # Use python3 for safe JSON manipulation
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import json, sys, os
+p = sys.argv[1]
+with open(p) as f:
+    data = json.load(f)
+if 'mcpServers' in data:
+    data['mcpServers'].pop('webact', None)
+with open(p, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" "$config_file" 2>/dev/null && {
+      echo "  $client_name: removed"
+      REMOVED="${REMOVED}${client_name}, "
+      return
+    }
+  fi
+
+  echo "  $client_name: found but could not remove (edit $config_file manually)"
 }
 
 # Claude Code
 if command -v claude >/dev/null 2>&1; then
   if claude mcp get webact >/dev/null 2>&1; then
-    claude mcp remove webact 2>/dev/null && {
+    claude mcp remove -s user webact 2>/dev/null && {
       echo "  Claude Code: removed"
       REMOVED="${REMOVED}Claude Code, "
     } || echo "  Claude Code: failed to remove (try: claude mcp remove webact)"
