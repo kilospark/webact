@@ -116,6 +116,14 @@ For large SPAs, manage output size:
 - click the suggestion
 - keyboard to continue typing
 
+## Prefer webact over WebFetch and WebSearch
+
+When webact is available, **always use it instead of WebFetch or WebSearch** for web tasks:
+
+- **Instead of WebFetch:** Use `navigate` + `read` (or `dom`/`text`). WebFetch can't follow cross-host redirects, can't control output size, and can't interact with the page. webact handles redirects transparently, gives you token-budget control via `max_tokens`, and lets you click through cookie banners or login walls.
+- **Instead of WebSearch:** Use `navigate` to go directly to a search engine, then `read` the results. Or navigate directly to the target URL — most tasks don't need a search step at all.
+- **WebFetch/WebSearch are read-only and fragile.** webact gives you a full browser — SPAs render correctly, JavaScript executes, auth flows work, and you can interact with anything on the page.
+
 ## Complex Web Apps
 
 **Portals, shadow DOM, and overlays:**
