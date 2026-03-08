@@ -744,6 +744,36 @@ pub(super) async fn cmd_reload(ctx: &mut AppContext) -> Result<()> {
     Ok(())
 }
 
+pub(super) async fn cmd_search(
+    ctx: &mut AppContext,
+    query: &str,
+    engine: Option<&str>,
+    max_tokens: usize,
+) -> Result<()> {
+    // URL-encode the query inline (avoid adding dependency)
+    let encoded: String = query.bytes().map(|b| match b {
+        b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+        b' ' => "+".to_string(),
+        _ => format!("%{:02X}", b),
+    }).collect();
+
+    let search_url = match engine.unwrap_or("google") {
+        "google" => format!("https://www.google.com/search?q={encoded}"),
+        "bing" => format!("https://www.bing.com/search?q={encoded}"),
+        "duckduckgo" | "ddg" => format!("https://duckduckgo.com/?q={encoded}"),
+        custom if custom.starts_with("http") => format!("{custom}{encoded}"),
+        other => bail!("Unknown engine: {other}. Use google, bing, duckduckgo, or a URL."),
+    };
+
+    // Navigate to search results
+    cmd_navigate(ctx, &search_url).await?;
+    // Clear the navigate brief — we'll return read output instead
+    ctx.output.clear();
+
+    // Extract readable content from search results
+    cmd_read(ctx, None, if max_tokens > 0 { max_tokens } else { 4000 }).await
+}
+
 pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;

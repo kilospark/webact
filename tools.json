@@ -502,5 +502,18 @@
       },
       "required": []
     }
+  },
+  {
+    "name": "webact_search",
+    "description": "Search the web using a real browser. Navigates to a search engine, submits the query, and extracts results. Default engine: Google. Use engine parameter for alternatives.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string", "description": "Search query" },
+        "engine": { "type": "string", "description": "Search engine: google (default), bing, duckduckgo, or a custom URL (query appended)" },
+        "max_tokens": { "type": "integer", "description": "Approximate token limit for results" }
+      },
+      "required": ["query"]
+    }
   }
 ]

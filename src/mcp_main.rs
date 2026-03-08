@@ -530,6 +530,22 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             args
         }
+        // Search: engine, max_tokens, query
+        "search" => {
+            let mut args = Vec::new();
+            if let Some(engine) = arguments.get("engine").and_then(Value::as_str) {
+                if !engine.is_empty() {
+                    args.push(format!("--engine={engine}"));
+                }
+            }
+            if let Some(tokens) = arguments.get("max_tokens").and_then(Value::as_u64) {
+                args.push(format!("--tokens={tokens}"));
+            }
+            if let Some(query) = arguments.get("query").and_then(Value::as_str) {
+                args.push(query.to_string());
+            }
+            args
+        }
         // Find: query
         "find" => {
             vec_from_opt_str(arguments, "query")

@@ -224,6 +224,24 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         }
         "lock" => cmd_lock(ctx, args.first().map(String::as_str)).await,
         "unlock" => cmd_unlock(ctx).await,
+        "search" => {
+            let mut max_tokens = 0usize;
+            let mut engine = None;
+            let mut query_parts = Vec::new();
+            for arg in args {
+                if let Some(raw) = arg.strip_prefix("--tokens=") {
+                    max_tokens = raw.parse::<usize>().unwrap_or(0);
+                } else if let Some(raw) = arg.strip_prefix("--engine=") {
+                    engine = Some(raw.to_string());
+                } else {
+                    query_parts.push(arg.clone());
+                }
+            }
+            if query_parts.is_empty() {
+                bail!("Usage: webact search <query> [--engine=google|bing|duckduckgo|<url>]");
+            }
+            cmd_search(ctx, &query_parts.join(" "), engine.as_deref(), max_tokens).await
+        }
         "back" => cmd_back(ctx).await,
         "forward" => cmd_forward(ctx).await,
         "reload" => cmd_reload(ctx).await,
