@@ -12,6 +12,7 @@
     "mcp.js",
     "tools.json",
     "SKILL.md",
+    "MCP_INSTRUCTIONS.md",
     "agents/"
   ],
   "scripts": {

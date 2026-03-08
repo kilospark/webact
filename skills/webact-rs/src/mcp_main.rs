@@ -4,6 +4,7 @@ use std::io::{self, BufRead, Write as IoWrite};
 use serde_json::Value;
 
 const TOOLS_JSON: &str = include_str!("../tools.json");
+const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
 
 fn main() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -68,7 +69,8 @@ async fn run_mcp_server() -> Result<()> {
                         "serverInfo": {
                             "name": "webact-mcp",
                             "version": env!("CARGO_PKG_VERSION")
-                        }
+                        },
+                        "instructions": MCP_INSTRUCTIONS
                     }
                 });
                 write_response(&stdout, &response)?;

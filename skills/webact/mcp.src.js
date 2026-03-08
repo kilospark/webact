@@ -6,6 +6,9 @@ const crypto = require('crypto');
 const readline = require('readline');
 const { version: VERSION } = require('./package.json');
 const TOOLS = require('./tools.json');
+let MCP_INSTRUCTIONS = '';
+try { MCP_INSTRUCTIONS = fs.readFileSync(path.join(__dirname, 'MCP_INSTRUCTIONS.md'), 'utf8'); } catch {}
+
 const {
   IS_WSL,
   getWSLHostIP,
@@ -913,6 +916,7 @@ async function handleRequest(msg) {
             protocolVersion: '2025-11-25',
             capabilities: { tools: {} },
             serverInfo: { name: 'webact', version: VERSION },
+            instructions: MCP_INSTRUCTIONS,
           },
         });
         break;

@@ -21,6 +21,7 @@ var require_package = __commonJS({
         "mcp.js",
         "tools.json",
         "SKILL.md",
+        "MCP_INSTRUCTIONS.md",
         "agents/"
       ],
       scripts: {
@@ -6961,6 +6962,11 @@ var crypto = require("crypto");
 var readline = require("readline");
 var { version: VERSION } = require_package();
 var TOOLS = require_tools();
+var MCP_INSTRUCTIONS = "";
+try {
+  MCP_INSTRUCTIONS = fs.readFileSync(path.join(__dirname, "MCP_INSTRUCTIONS.md"), "utf8");
+} catch {
+}
 var {
   IS_WSL,
   getWSLHostIP,
@@ -7852,7 +7858,8 @@ async function handleRequest(msg) {
           result: {
             protocolVersion: "2025-11-25",
             capabilities: { tools: {} },
-            serverInfo: { name: "webact", version: VERSION }
+            serverInfo: { name: "webact", version: VERSION },
+            instructions: MCP_INSTRUCTIONS
           }
         });
         break;
