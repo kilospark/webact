@@ -2,6 +2,8 @@
 
 Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches on first tool call.
 
+**Always use these MCP tools — never shell out to the `webact` CLI.** The MCP server manages sessions, tab isolation, and Chrome lifecycle automatically. Running CLI commands bypasses session tracking and causes tab conflicts between agents.
+
 ## Key Concepts
 
 **Auto-brief:** State-changing tools (navigate, click, hover, press, scroll, select, waitfor) auto-return a compact page summary showing URL, title, inputs, buttons, links, and total element counts. You usually don't need a separate `dom` call.

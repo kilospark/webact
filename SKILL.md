@@ -5,7 +5,9 @@ description: Use when the user asks to interact with a website, browse the web, 
 
 # WebAct Browser Control
 
-Control Chrome directly via the Chrome DevTools Protocol. No Playwright, no MCP - raw CDP through a CLI helper.
+Control Chrome directly via the Chrome DevTools Protocol. Raw CDP through a CLI helper.
+
+**If you have webact MCP tools available (e.g. `webact_navigate`, `webact_click`), use those instead of this CLI.** The MCP server handles session management and tab isolation automatically. Only use this CLI skill if MCP tools are not available.
 
 ## How to Run Commands
 
