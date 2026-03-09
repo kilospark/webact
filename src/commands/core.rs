@@ -545,7 +545,6 @@ pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
                 "code": mapping.code,
                 "keyCode": mapping.key_code,
                 "windowsVirtualKeyCode": mapping.key_code,
-                "nativeVirtualKeyCode": mapping.key_code,
                 "modifiers": mod_bits,
             }),
         )
@@ -559,7 +558,6 @@ pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
                 "code": mapping.code,
                 "keyCode": mapping.key_code,
                 "windowsVirtualKeyCode": mapping.key_code,
-                "nativeVirtualKeyCode": mapping.key_code,
                 "modifiers": mod_bits,
             }),
         )
@@ -584,7 +582,6 @@ pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
             "code": mapping.code,
             "keyCode": mapping.key_code,
             "windowsVirtualKeyCode": mapping.key_code,
-            "nativeVirtualKeyCode": mapping.key_code,
         }),
     )
     .await?;
@@ -596,7 +593,6 @@ pub(super) async fn cmd_press(ctx: &mut AppContext, key: &str) -> Result<()> {
             "code": mapping.code,
             "keyCode": mapping.key_code,
             "windowsVirtualKeyCode": mapping.key_code,
-            "nativeVirtualKeyCode": mapping.key_code,
         }),
     )
     .await?;
