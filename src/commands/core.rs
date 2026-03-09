@@ -108,6 +108,11 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
     fs::write(ctx.last_session_file(), &session_id)
         .context("failed writing last session pointer")?;
 
+    // Minimize so Chrome doesn't steal focus from the user
+    if let Some(name) = &ctx.launch_browser_name {
+        let _ = minimize_browser(name);
+    }
+
     out!(ctx, "Session: {session_id}");
     out!(ctx, "Command file: {}", ctx.command_file(&session_id).display());
     Ok(())
