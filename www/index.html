@@ -325,6 +325,149 @@ nav .gh-link svg { width: 20px; height: 20px; fill: currentColor; }
   letter-spacing: 0.1em;
 }
 
+/* --- LIVE STATS --- */
+.live-stats {
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+}
+
+.live-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+}
+
+.live-panel {
+  background: var(--bg);
+  padding: 40px 32px;
+}
+
+.live-panel h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 24px;
+}
+
+.rating-display {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.rating-big {
+  font-family: var(--font-display);
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.rating-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.rating-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rating-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rating-bar-label {
+  width: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.rating-bar-track {
+  flex: 1;
+  height: 16px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.rating-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rating-bar-count {
+  width: 24px;
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.tool-name {
+  width: 100px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.tool-bar-track {
+  flex: 1;
+  height: 24px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.tool-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bg);
+  white-space: nowrap;
+  transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tool-count {
+  width: 48px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.live-loading {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 768px) {
+  .live-stats-grid { grid-template-columns: 1fr; }
+  .tool-name { width: 72px; }
+}
+
 /* --- TOKEN COMPARISON --- */
 .comparison {
   padding: 100px 0;
@@ -742,6 +885,27 @@ footer .btn-primary { display: inline-flex; }
   </div>
 </section>
 
+<!-- LIVE STATS -->
+<section class="live-stats">
+  <div class="container">
+    <div class="section-label reveal">Community</div>
+    <h2 class="section-title reveal">Live from the field</h2>
+    <p class="section-desc reveal">
+      Real usage data from webact sessions. Updated live.
+    </p>
+    <div class="live-stats-grid reveal">
+      <div class="live-panel">
+        <h3>Agent ratings</h3>
+        <div id="ratings-display" class="live-loading">Loading...</div>
+      </div>
+      <div class="live-panel">
+        <h3>Top tools</h3>
+        <div id="tools-leaderboard" class="live-loading">Loading...</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- TOKEN COMPARISON -->
 <section class="comparison">
   <div class="container">
@@ -1000,6 +1164,48 @@ if (saved === 'light') setMode(true);
 toggle.addEventListener('click', () => {
   setMode(!document.documentElement.classList.contains('light'));
 });
+
+// Live stats
+(async function loadStats() {
+  try {
+    const res = await fetch('https://webact-api-227308092166.us-central1.run.app/v1/stats');
+    const data = await res.json();
+
+    // Ratings
+    const ratingsEl = document.getElementById('ratings-display');
+    const maxCount = Math.max(...Object.values(data.ratings.distribution || {}), 1);
+    const barsHtml = [5, 4, 3, 2, 1].map(n => {
+      const count = (data.ratings.distribution || {})[n] || 0;
+      const pct = (count / maxCount) * 100;
+      return `<div class="rating-bar-row">
+        <span class="rating-bar-label">${n}</span>
+        <div class="rating-bar-track"><div class="rating-bar-fill" style="width:${pct}%"></div></div>
+        <span class="rating-bar-count">${count}</span>
+      </div>`;
+    }).join('');
+    ratingsEl.innerHTML = `
+      <div class="rating-display">
+        <span class="rating-big">${data.ratings.average}</span>
+        <span class="rating-meta">${data.ratings.total} ratings<br>${data.sessions} sessions</span>
+      </div>
+      <div class="rating-bars">${barsHtml}</div>`;
+
+    // Tools leaderboard
+    const toolsEl = document.getElementById('tools-leaderboard');
+    const topTools = (data.tools || []).slice(0, 10);
+    const maxToolCount = topTools.length > 0 ? topTools[0].count : 1;
+    toolsEl.innerHTML = topTools.map(t => {
+      const pct = (t.count / maxToolCount) * 100;
+      return `<div class="tool-row">
+        <span class="tool-name">${t.tool}</span>
+        <div class="tool-bar-track"><div class="tool-bar-fill" style="width:${pct}%"></div></div>
+        <span class="tool-count">${t.count.toLocaleString()}</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    // Silently fail — static content still works
+  }
+})();
 </script>
 
 </body>
