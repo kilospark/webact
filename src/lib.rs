@@ -620,9 +620,21 @@ pub async fn locate_element_by_text(
           const exact = tl === lower;
           const has = tl.includes(lower);
           if (!exact && !has) continue;
+          const isInteractive = ['A','BUTTON','INPUT','SELECT','TEXTAREA','SUMMARY'].includes(el.tagName)
+            || el.getAttribute('role') === 'button'
+            || el.getAttribute('role') === 'link'
+            || el.getAttribute('role') === 'menuitem'
+            || el.getAttribute('role') === 'tab';
           const len = t.length;
-          if (exact && (!best || !best.exact || len < bestLen)) {{ best = {{ el, exact: true }}; bestLen = len; }}
-          else if (has && !(best && best.exact) && len < bestLen) {{ best = {{ el, exact: false }}; bestLen = len; }}
+          if (exact) {{
+            if (!best || !best.exact || (isInteractive && !best.interactive) || (isInteractive === best.interactive && len < bestLen)) {{
+              best = {{ el, exact: true, interactive: isInteractive }}; bestLen = len;
+            }}
+          }} else if (has && !(best && best.exact)) {{
+            if (!best || (isInteractive && !best.interactive) || (isInteractive === best.interactive && len < bestLen)) {{
+              best = {{ el, exact: false, interactive: isInteractive }}; bestLen = len;
+            }}
+          }}
         }}
 
         if (!best) return {{ error: 'No visible element with text: ' + target }};
