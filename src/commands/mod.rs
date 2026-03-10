@@ -144,6 +144,13 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             let selector = resolve_selector(ctx, &selector_arg)?;
             cmd_type(ctx, &selector, &text).await
         }
+        "fill" => {
+            let fields: Vec<(String, String)> = args.chunks(2)
+                .filter(|c| c.len() == 2)
+                .map(|c| (c[0].clone(), c[1].clone()))
+                .collect();
+            cmd_fill(ctx, &fields).await
+        }
         "keyboard" => cmd_keyboard(ctx, &args.join(" ")).await,
         "paste" => cmd_paste(ctx, &args.join(" ")).await,
         "select" => {

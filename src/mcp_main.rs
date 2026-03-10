@@ -338,6 +338,17 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             args
         }
+        // Fill: fields object -> alternating selector/value pairs
+        "fill" => {
+            let mut args = Vec::new();
+            if let Some(fields) = arguments.get("fields").and_then(Value::as_object) {
+                for (selector, value) in fields {
+                    args.push(selector.clone());
+                    args.push(value.as_str().unwrap_or_default().to_string());
+                }
+            }
+            args
+        }
         // Keyboard/paste: text
         "keyboard" | "paste" => {
             vec_from_opt_str(arguments, "text")

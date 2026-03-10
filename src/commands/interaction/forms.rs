@@ -268,6 +268,53 @@ pub(crate) async fn cmd_upload(
     Ok(())
 }
 
+pub(crate) async fn cmd_fill(ctx: &mut AppContext, fields: &[(String, String)]) -> Result<()> {
+    if fields.is_empty() {
+        bail!("Usage: webact fill requires at least one field");
+    }
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+
+    let mut filled = 0usize;
+    for (selector, value) in fields {
+        let resolved = resolve_selector(ctx, selector)?;
+        let focus_script = format!(
+            "(function() {{ const el = document.querySelector({sel}); if (!el) return {{ error: 'Element not found: ' + {sel} }}; el.focus(); if (el.select) el.select(); return {{ ok: true }}; }})()",
+            sel = serde_json::to_string(&resolved)?
+        );
+        let focus_result =
+            runtime_evaluate_with_context(&mut cdp, &focus_script, true, false, context_id)
+                .await?;
+        if let Some(err) = focus_result
+            .pointer("/result/value/error")
+            .and_then(Value::as_str)
+        {
+            bail!("{err}");
+        }
+
+        for ch in value.chars() {
+            let char_s = ch.to_string();
+            cdp.send(
+                "Input.dispatchKeyEvent",
+                json!({ "type": "keyDown", "text": char_s, "unmodifiedText": char_s }),
+            )
+            .await?;
+            cdp.send(
+                "Input.dispatchKeyEvent",
+                json!({ "type": "keyUp", "text": char_s, "unmodifiedText": char_s }),
+            )
+            .await?;
+        }
+        filled += 1;
+    }
+
+    out!(ctx, "Filled {} field(s)", filled);
+    out!(ctx, "{}", get_page_brief(&mut cdp).await?);
+    cdp.close().await;
+    Ok(())
+}
+
 pub(crate) async fn cmd_dialog(
     ctx: &mut AppContext,
     action: Option<&str>,

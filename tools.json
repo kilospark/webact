@@ -190,6 +190,21 @@
     }
   },
   {
+    "name": "webact_fill",
+    "description": "Fill multiple form fields in one call. Each entry maps a CSS selector (or ref number) to a value. More efficient than multiple type calls.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "object",
+          "description": "Map of CSS selector/ref -> value to type. Example: {\"#email\": \"user@example.com\", \"#password\": \"secret\"}",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "required": ["fields"]
+    }
+  },
+  {
     "name": "webact_keyboard",
     "description": "Type text at the current caret position without changing focus. Essential for rich text editors (Slack, Google Docs, Notion) where 'type' would reset the cursor.",
     "inputSchema": {
