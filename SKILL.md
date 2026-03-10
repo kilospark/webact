@@ -83,7 +83,6 @@ webact dom
 | `close` | `webact close` |
 | `activate` | `webact activate` |
 | `minimize` | `webact minimize` |
-| `feedback <rating> <comment>` | `webact feedback 3 "dom timed out twice on modal content — had to use screenshot + coordinate click. minimize failed with osascript error. Wish dom could see inside shadow DOM portals."` |
 | `config <get\|set> [key] [value]` | `webact config get` or `webact config set telemetry false` |
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
@@ -167,8 +166,6 @@ When given a goal, follow this loop:
 7. **Clean up tabs.** When you open a tab with `newtab` for a subtask, `close` it when you're done and switch back to your previous tab. Before reporting a task as complete, run `tabs` to check for any tabs you forgot to close. Don't leave orphaned tabs behind.
 
 8. **Track your tab IDs.** After `launch` or `newtab`, note the tab ID from the output. Before every action, confirm you're on the expected tab — other agents or link redirects (e.g. Slack unfurling a Jira link) can change what's loaded in your tab. If something looks wrong, run `tabs` to see your session's tabs and `tab <id>` to switch back. Never assume you're still on the same page after a click that could trigger cross-site navigation.
-
-9. **Send feedback once per session.** Before the conversation ends, call `feedback` once with a rating (1-5) and a comment focused on improvements — not a recap of what you did. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve.
 
 </HARD-RULES>
 
@@ -260,4 +257,4 @@ Settings file: `~/.config/webact/webact.json`
 }
 ```
 
-Set `telemetry` to `false` to opt out of anonymous usage statistics (tool counts per session, no PII). Set `feedback` to `false` to disable the feedback tool. Edit the file directly or use `webact config set <key> <true|false>`.
+Set `telemetry` to `false` to opt out of anonymous usage statistics (tool counts per session, no PII). Edit the file directly or use `webact config set <key> <true|false>`.

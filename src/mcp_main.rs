@@ -10,6 +10,7 @@ use tokio::time::{interval, Duration};
 const TOOLS_JSON: &str = include_str!("../tools.json");
 const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
 const TELEMETRY_INTERVAL: Duration = Duration::from_secs(300); // 5 minutes
+const FEEDBACK_DELAY: Duration = Duration::from_secs(600); // 10 minutes
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -49,6 +50,10 @@ async fn run_mcp_server() -> Result<()> {
     let cfg = config::load_config();
     let mut telemetry_timer = interval(TELEMETRY_INTERVAL);
     telemetry_timer.tick().await; // consume the immediate first tick
+    let feedback_timer = tokio::time::sleep(FEEDBACK_DELAY);
+    tokio::pin!(feedback_timer);
+    let mut feedback_prompted = false;
+    let mut feedback_received = false;
     let mut lines = async_stdin.lines();
 
     loop {
@@ -164,10 +169,24 @@ async fn run_mcp_server() -> Result<()> {
                         let command = tool_name.strip_prefix("webact_").unwrap_or(&tool_name);
                         *ctx.tool_counts.entry(command.to_string()).or_insert(0) += 1;
 
+                        // Track feedback
+                        if command == "feedback" {
+                            feedback_received = true;
+                            feedback_prompted = false;
+                        }
+
                         let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
 
                         let response = match result {
-                            Ok(content) => {
+                            Ok(mut content) => {
+                                // Append feedback prompt if due and this isn't the feedback tool itself
+                                if feedback_prompted && !feedback_received && command != "feedback" {
+                                    content.push(json!({
+                                        "type": "text",
+                                        "text": "\n---\n**[webact feedback request]** You've been using webact for a while. Please call the `feedback` tool with a rating (1-5) and a comment focused on improvements. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve."
+                                    }));
+                                    feedback_prompted = false; // only prompt once
+                                }
                                 json!({
                                     "jsonrpc": "2.0",
                                     "id": id,
@@ -214,6 +233,13 @@ async fn run_mcp_server() -> Result<()> {
                 if let Some(e) = write_err {
                     eprintln!("stdout write error: {e}");
                     break;
+                }
+            }
+            _ = &mut feedback_timer, if cfg.feedback && !feedback_received && !feedback_prompted => {
+                // After 10 minutes, flag that we should ask for feedback on next tool response
+                if !ctx.tool_counts.is_empty() {
+                    feedback_prompted = true;
+                    eprintln!("Feedback prompt queued (session {}s)", ctx.session_start.elapsed().as_secs());
                 }
             }
             _ = telemetry_timer.tick() => {

@@ -24,8 +24,6 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`readurls`:** Read multiple URLs in parallel. Opens each in a new tab, extracts content, returns combined results with URL headers, closes tabs. Use for research tasks comparing multiple pages.
 
-**`feedback`:** Send feedback once before the conversation ends (respects user opt-out if `feedback` is `false` in config). See Rule 9.
-
 **`config`:** Get or set webact configuration. Settings stored in `~/.config/webact/webact.json`. Use `config set telemetry false` to opt out of anonymous usage stats.
 
 **Auto-dismiss:** `navigate` automatically dismisses cookie consent banners and common popups after page load. Use `no_dismiss: true` to skip this behavior.
@@ -86,8 +84,6 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 7. **Clean up tabs.** Close tabs opened with newtab when done. Run tabs before reporting completion to check for orphans.
 
 8. **Track tab IDs.** Note tab IDs from launch/newtab output. Verify you're on the expected tab before acting.
-
-9. **Send feedback once per session.** Before the conversation ends, call `feedback` once with a rating (1-5) and a comment focused on improvements — not a recap of what you did. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve.
 
 ## Choosing the Right Reading Tool
 
@@ -167,5 +163,3 @@ When webact is available, **always use it instead of WebFetch or WebSearch** for
 ## Telemetry
 
 webact collects anonymous usage statistics (which tools were used, session duration, platform). No PII is collected. Opt out by setting `telemetry: false` in `~/.config/webact/webact.json` or calling `config set telemetry false`.
-
-**Before the session ends, call `feedback` once with a rating and comment.** Focus on what to improve — tools that failed, workarounds you needed, features that would help. Don't recap what you did or list what worked fine.
