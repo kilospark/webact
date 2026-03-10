@@ -223,11 +223,9 @@ async fn handle_tool_call(
 }
 
 fn handle_screenshot_output(output: &str) -> Result<Vec<Value>> {
-    // The screenshot command writes "Screenshot saved to /path/to/file.png"
-    // Extract the path, read the file, return as base64 image content
     let path = output
-        .trim()
-        .strip_prefix("Screenshot saved to ")
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("Screenshot saved to "))
         .map(|s| s.trim())
         .unwrap_or_default();
 
@@ -241,12 +239,13 @@ fn handle_screenshot_output(output: &str) -> Result<Vec<Value>> {
     let bytes = fs::read(path)
         .with_context(|| format!("failed reading screenshot file: {path}"))?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    let mime = if path.ends_with(".png") { "image/png" } else { "image/jpeg" };
 
     Ok(vec![
         json!({
             "type": "image",
             "data": b64,
-            "mimeType": "image/png"
+            "mimeType": mime
         }),
         json!({
             "type": "text",
@@ -589,8 +588,26 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         "focus" | "clear" => {
             vec_from_opt_str(arguments, "selector")
         }
+        "screenshot" => {
+            let mut args = Vec::new();
+            if let Some(sel) = arguments.get("selector").and_then(Value::as_str) {
+                if !sel.is_empty() {
+                    args.push(format!("--selector={sel}"));
+                }
+            }
+            if let Some(fmt) = arguments.get("format").and_then(Value::as_str) {
+                args.push(format!("--format={fmt}"));
+            }
+            if let Some(q) = arguments.get("quality").and_then(Value::as_i64) {
+                args.push(format!("--quality={q}"));
+            }
+            if let Some(w) = arguments.get("width").and_then(Value::as_i64) {
+                args.push(format!("--width={w}"));
+            }
+            args
+        }
         // No-arg commands
-        "launch" | "screenshot" | "observe" | "frames" | "tabs" | "close" | "back"
+        "launch" | "observe" | "frames" | "tabs" | "close" | "back"
         | "forward" | "reload" | "activate" | "minimize" | "unlock" => {
             Vec::new()
         }

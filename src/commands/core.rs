@@ -891,12 +891,85 @@ pub(super) async fn cmd_readurls(
     Ok(())
 }
 
-pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
+pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Result<()> {
+    // Parse args
+    let mut selector: Option<String> = None;
+    let mut format = "jpeg".to_string();
+    let mut quality: u32 = 80;
+    let mut scale_width: Option<u32> = None;
+
+    for arg in args {
+        if let Some(v) = arg.strip_prefix("--selector=") {
+            selector = Some(v.to_string());
+        } else if let Some(v) = arg.strip_prefix("--format=") {
+            format = if v == "png" { "png".to_string() } else { "jpeg".to_string() };
+        } else if let Some(v) = arg.strip_prefix("--quality=") {
+            quality = v.parse().unwrap_or(80).clamp(1, 100);
+        } else if let Some(v) = arg.strip_prefix("--width=") {
+            scale_width = v.parse().ok();
+        }
+    }
+
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;
-    let result = cdp
-        .send("Page.captureScreenshot", json!({ "format": "png" }))
-        .await?;
+
+    // Build CDP params
+    let mut params = json!({ "format": &format });
+
+    if format == "jpeg" {
+        params["quality"] = json!(quality);
+    }
+
+    // If selector given, get element bounding rect for clip region
+    if let Some(sel) = &selector {
+        let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+        let script = format!(
+            r#"(function() {{
+                const el = document.querySelector({sel});
+                if (!el) return {{ error: 'Element not found: ' + {sel} }};
+                el.scrollIntoView({{ block: 'center', inline: 'center', behavior: 'instant' }});
+                const rect = el.getBoundingClientRect();
+                return {{ x: rect.x, y: rect.y, width: rect.width, height: rect.height }};
+            }})()"#,
+            sel = serde_json::to_string(sel.as_str())?
+        );
+        let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+        let value = result.pointer("/result/value").cloned().unwrap_or(Value::Null);
+        if let Some(err) = value.get("error").and_then(Value::as_str) {
+            bail!("{err}");
+        }
+        let x = value.get("x").and_then(Value::as_f64).unwrap_or(0.0);
+        let y = value.get("y").and_then(Value::as_f64).unwrap_or(0.0);
+        let w = value.get("width").and_then(Value::as_f64).unwrap_or(0.0);
+        let h = value.get("height").and_then(Value::as_f64).unwrap_or(0.0);
+        if w > 0.0 && h > 0.0 {
+            params["clip"] = json!({
+                "x": x, "y": y, "width": w, "height": h, "scale": 1
+            });
+        }
+    }
+
+    // If width given, compute scale factor to achieve target width
+    if let Some(target_w) = scale_width {
+        let vp_result = runtime_evaluate(&mut cdp, "window.innerWidth", true, false).await?;
+        let viewport_w = vp_result
+            .pointer("/result/value")
+            .and_then(Value::as_f64)
+            .unwrap_or(1280.0);
+        let scale = target_w as f64 / viewport_w;
+        if let Some(clip) = params.get_mut("clip") {
+            clip["scale"] = json!(scale);
+        } else {
+            params["clip"] = json!({
+                "x": 0, "y": 0,
+                "width": viewport_w,
+                "height": viewport_w * 2.0,
+                "scale": scale
+            });
+        }
+    }
+
+    let result = cdp.send("Page.captureScreenshot", params).await?;
     let data = result
         .get("data")
         .and_then(Value::as_str)
@@ -904,13 +977,14 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext) -> Result<()> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(data)
         .context("Failed to decode screenshot data")?;
+
     let sid = ctx
         .current_session_id
         .clone()
         .unwrap_or_else(|| "default".to_string());
-    let out = ctx
-        .tmp_dir()
-        .join(format!("webact-screenshot-{sid}.png"));
+    let ext = if format == "png" { "png" } else { "jpeg" };
+    let out = ctx.tmp_dir().join(format!("webact-screenshot-{sid}.{ext}"));
+
     fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
     out!(ctx, "Screenshot saved to {}", out.display());
     cdp.close().await;

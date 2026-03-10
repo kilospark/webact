@@ -98,7 +98,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                 cmd_axtree_full(ctx, selector, effective_max).await
             }
         }
-        "screenshot" => cmd_screenshot(ctx).await,
+        "screenshot" => cmd_screenshot(ctx, args).await,
         "pdf" => cmd_pdf(ctx, args.first().map(String::as_str)).await,
         "click" => {
             if args.is_empty() {

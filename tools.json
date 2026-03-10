@@ -88,8 +88,17 @@
   },
   {
     "name": "webact_screenshot",
-    "description": "Capture a screenshot of the current page. Returns the image directly.",
-    "inputSchema": { "type": "object", "properties": {}, "required": [] }
+    "description": "Capture a screenshot of the current page or a specific element. Returns the image directly. Defaults to JPEG quality 80 for token efficiency.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "selector": { "type": "string", "description": "CSS selector to capture only that element's bounding box" },
+        "format": { "type": "string", "enum": ["jpeg", "png"], "description": "Image format (default: jpeg)" },
+        "quality": { "type": "integer", "description": "JPEG quality 1-100 (default: 80). Ignored for PNG." },
+        "width": { "type": "integer", "description": "Scale output to this width in pixels (preserves aspect ratio)" }
+      },
+      "required": []
+    }
   },
   {
     "name": "webact_pdf",
