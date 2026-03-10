@@ -83,6 +83,8 @@ webact dom
 | `close` | `webact close` |
 | `activate` | `webact activate` |
 | `minimize` | `webact minimize` |
+| `feedback <rating> [comment]` | `webact feedback 5 "great session"` |
+| `config <get\|set> [key] [value]` | `webact config get` or `webact config set telemetry false` |
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
 
@@ -244,3 +246,16 @@ For site-specific tips (Google Docs, Slack, Jira, Gmail, rich editors), see `sit
 - `axtree` returns the full accessibility tree without depth limits — deep overlays, nested menus, and complex widget trees are included
 - For elements with no distinguishing text, take a `screenshot`, identify the pixel coordinates, then `click 550,197`
 - When `dom` and `click --text` fail on portal elements, use `eval` to find and `.click()` them directly
+
+## Configuration
+
+Settings file: `~/.config/webact/webact.json`
+
+```json
+{
+  "telemetry": true,
+  "feedback": true
+}
+```
+
+Set `telemetry` to `false` to opt out of anonymous usage statistics (tool counts per session, no PII). Set `feedback` to `false` to disable the feedback tool. Edit the file directly or use `webact config set <key> <true|false>`.

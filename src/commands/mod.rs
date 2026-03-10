@@ -272,6 +272,58 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "back" => cmd_back(ctx).await,
         "forward" => cmd_forward(ctx).await,
         "reload" => cmd_reload(ctx).await,
+        "feedback" => {
+            let rating: u8 = args
+                .first()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(0);
+            let comment = args.get(1).map(String::as_str).unwrap_or("");
+            let config = crate::config::load_config();
+            if !config.feedback {
+                out!(ctx, "Feedback is disabled. Enable with: webact config set feedback true");
+                return Ok(());
+            }
+            if rating < 1 || rating > 5 {
+                bail!("Rating must be 1-5");
+            }
+            match crate::api_client::send_feedback(
+                &ctx.session_id,
+                env!("CARGO_PKG_VERSION"),
+                rating,
+                comment,
+            )
+            .await
+            {
+                Ok(_) => out!(ctx, "Feedback sent. Thank you!"),
+                Err(e) => out!(ctx, "Failed to send feedback: {e}"),
+            }
+            Ok(())
+        }
+        "config" => {
+            let action = args.first().map(String::as_str).unwrap_or("get");
+            match action {
+                "get" => {
+                    let config = crate::config::load_config();
+                    let json = serde_json::to_string_pretty(&config)?;
+                    out!(ctx, "{json}");
+                    Ok(())
+                }
+                "set" => {
+                    let key = args.get(1).map(String::as_str).unwrap_or("");
+                    let value = args.get(2).map(|s| s == "true").unwrap_or(true);
+                    let mut config = crate::config::load_config();
+                    match key {
+                        "telemetry" => config.telemetry = value,
+                        "feedback" => config.feedback = value,
+                        _ => bail!("Unknown config key: {key}. Valid keys: telemetry, feedback"),
+                    }
+                    crate::config::save_config(&config)?;
+                    out!(ctx, "Set {key} = {value}");
+                    Ok(())
+                }
+                _ => bail!("Usage: config get | config set <key> <true|false>"),
+            }
+        }
         _ => bail!("Unknown command: {command}"),
     }
 }

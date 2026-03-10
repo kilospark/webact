@@ -24,6 +24,10 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`readurls`:** Read multiple URLs in parallel. Opens each in a new tab, extracts content, returns combined results with URL headers, closes tabs. Use for research tasks comparing multiple pages.
 
+**`feedback`:** Send feedback about your webact experience. Call at end of session with a rating (1-5) and optional comment. Disable with `config set feedback false`.
+
+**`config`:** Get or set webact configuration. Settings stored in `~/.config/webact/webact.json`. Use `config set telemetry false` to opt out of anonymous usage stats.
+
 **Auto-dismiss:** `navigate` automatically dismisses cookie consent banners and common popups after page load. Use `no_dismiss: true` to skip this behavior.
 
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles and accessible names — better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
@@ -157,3 +161,9 @@ When webact is available, **always use it instead of WebFetch or WebSearch** for
 - axtree includes deep overlays and nested menus
 - For elements with no text, use screenshot + coordinate click
 - When all else fails, use eval to find and .click() directly
+
+## Telemetry
+
+webact collects anonymous usage statistics (which tools were used, session duration, platform). No PII is collected. Opt out by setting `telemetry: false` in `~/.config/webact/webact.json` or calling `config set telemetry false`.
+
+At the end of a session, consider calling `feedback` to share what worked well or didn't.

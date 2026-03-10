@@ -1,4 +1,6 @@
 use webact::*;
+use webact::api_client;
+use webact::config;
 
 use std::io::{self, BufRead, Write as IoWrite};
 use serde_json::Value;
@@ -64,6 +66,27 @@ async fn run_mcp_server() -> Result<()> {
 
         match method.as_str() {
             "initialize" => {
+                let current_version = env!("CARGO_PKG_VERSION");
+                let version_notice = match api_client::check_version(current_version).await {
+                    Ok(info) => {
+                        let is_latest = info
+                            .get("current_is_latest")
+                            .and_then(Value::as_bool)
+                            .unwrap_or(true);
+                        if !is_latest {
+                            let latest = info
+                                .get("latest")
+                                .and_then(Value::as_str)
+                                .unwrap_or("unknown");
+                            format!("**[Update available: webact v{latest} — you have v{current_version}. Visit https://github.com/kilospark/webact/releases/latest to update.]**\n\n")
+                        } else {
+                            String::new()
+                        }
+                    }
+                    Err(_) => String::new(),
+                };
+                let instructions = format!("{version_notice}{MCP_INSTRUCTIONS}");
+
                 let response = json!({
                     "jsonrpc": "2.0",
                     "id": id,
@@ -74,9 +97,9 @@ async fn run_mcp_server() -> Result<()> {
                         },
                         "serverInfo": {
                             "name": "webact-mcp",
-                            "version": env!("CARGO_PKG_VERSION")
+                            "version": current_version
                         },
-                        "instructions": MCP_INSTRUCTIONS
+                        "instructions": instructions
                     }
                 });
                 write_response(&stdout, &response)?;
@@ -110,6 +133,10 @@ async fn run_mcp_server() -> Result<()> {
                     .get("arguments")
                     .cloned()
                     .unwrap_or(json!({}));
+
+                // Count tool usage for telemetry
+                let command = tool_name.strip_prefix("webact_").unwrap_or(&tool_name);
+                *ctx.tool_counts.entry(command.to_string()).or_insert(0) += 1;
 
                 let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
 
@@ -156,6 +183,21 @@ async fn run_mcp_server() -> Result<()> {
         }
     }
 
+    // Send telemetry on shutdown (fire-and-forget)
+    let cfg = config::load_config();
+    if cfg.telemetry && !ctx.tool_counts.is_empty() {
+        let duration = ctx.session_start.elapsed().as_secs();
+        let platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
+        let _ = api_client::send_telemetry(
+            &ctx.session_id,
+            env!("CARGO_PKG_VERSION"),
+            &platform,
+            duration,
+            &ctx.tool_counts,
+        )
+        .await;
+    }
+
     Ok(())
 }
 
@@ -178,13 +220,16 @@ async fn handle_tool_call(
     // Strip webact_ prefix to get command name
     let command = tool_name.strip_prefix("webact_").unwrap_or(tool_name);
 
+    // Commands that don't need a browser session
+    let no_browser = matches!(command, "launch" | "connect" | "feedback" | "config");
+
     // Auto-discover session for most commands
-    if command != "launch" && command != "connect" && ctx.current_session_id.is_none() {
+    if !no_browser && ctx.current_session_id.is_none() {
         let _ = ctx.auto_discover_last_session();
     }
 
     // Auto-launch: if no session or Chrome not reachable, launch automatically
-    if command != "launch" && command != "connect" {
+    if !no_browser {
         let needs_launch = if ctx.current_session_id.is_none() {
             true
         } else {
@@ -614,6 +659,31 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             if let Some(w) = arguments.get("width").and_then(Value::as_i64) {
                 args.push(format!("--width={w}"));
+            }
+            args
+        }
+        // Feedback: rating + optional comment
+        "feedback" => {
+            let mut args = Vec::new();
+            if let Some(r) = arguments.get("rating").and_then(Value::as_i64) {
+                args.push(r.to_string());
+            }
+            if let Some(c) = arguments.get("comment").and_then(Value::as_str) {
+                args.push(c.to_string());
+            }
+            args
+        }
+        // Config: action + optional key + optional value
+        "config" => {
+            let mut args = Vec::new();
+            if let Some(a) = arguments.get("action").and_then(Value::as_str) {
+                args.push(a.to_string());
+            }
+            if let Some(k) = arguments.get("key").and_then(Value::as_str) {
+                args.push(k.to_string());
+            }
+            if let Some(v) = arguments.get("value") {
+                args.push(v.to_string());
             }
             args
         }

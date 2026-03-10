@@ -556,5 +556,30 @@
       },
       "required": ["urls"]
     }
+  },
+  {
+    "name": "webact_feedback",
+    "description": "Send feedback about webact. Call at end of session to share what worked or didn't.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "rating": { "type": "integer", "description": "Rating 1-5 (1=poor, 5=excellent)" },
+        "comment": { "type": "string", "description": "Optional free-text feedback" }
+      },
+      "required": ["rating"]
+    }
+  },
+  {
+    "name": "webact_config",
+    "description": "Get or set webact configuration. Config file: ~/.config/webact/webact.json",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["get", "set"], "description": "get: show config, set: update a key" },
+        "key": { "type": "string", "description": "Config key to set (telemetry or feedback)" },
+        "value": { "type": "boolean", "description": "Value to set (true or false)" }
+      },
+      "required": ["action"]
+    }
   }
 ]

@@ -23,7 +23,9 @@ macro_rules! out {
     }};
 }
 
+pub mod api_client;
 pub mod commands;
+pub mod config;
 pub mod scripts;
 pub mod types;
 pub mod utils;
@@ -44,6 +46,9 @@ pub struct AppContext {
     pub launch_browser_name: Option<String>,
     pub http: Client,
     pub output: String,
+    pub session_id: String,
+    pub tool_counts: std::collections::HashMap<String, u64>,
+    pub session_start: std::time::Instant,
 }
 
 impl AppContext {
@@ -59,6 +64,9 @@ impl AppContext {
             launch_browser_name: None,
             http,
             output: String::new(),
+            session_id: uuid::Uuid::new_v4().to_string(),
+            tool_counts: std::collections::HashMap::new(),
+            session_start: std::time::Instant::now(),
         })
     }
 
