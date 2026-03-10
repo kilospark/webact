@@ -2,11 +2,14 @@ use webact::*;
 use webact::api_client;
 use webact::config;
 
-use std::io::{self, BufRead, Write as IoWrite};
+use std::io::{self, Write as IoWrite};
 use serde_json::Value;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::time::{interval, Duration};
 
 const TOOLS_JSON: &str = include_str!("../tools.json");
 const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
+const TELEMETRY_INTERVAL: Duration = Duration::from_secs(300); // 5 minutes
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -29,7 +32,7 @@ fn main() {
 }
 
 async fn run_mcp_server() -> Result<()> {
-    let stdin = io::stdin();
+    let async_stdin = BufReader::new(tokio::io::stdin());
     let stdout = io::stdout();
 
     let mut ctx = AppContext::new()?;
@@ -43,175 +46,207 @@ async fn run_mcp_server() -> Result<()> {
         ctx.cdp_port = port;
     }
 
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!("stdin read error: {e}");
-                break;
-            }
-        };
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
+    let cfg = config::load_config();
+    let mut telemetry_timer = interval(TELEMETRY_INTERVAL);
+    telemetry_timer.tick().await; // consume the immediate first tick
+    let mut lines = async_stdin.lines();
 
-        let request: Value = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("Invalid JSON-RPC: {e}");
-                continue;
-            }
-        };
-
-        let id = request.get("id").cloned();
-        let method = request
-            .get("method")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-
-        // Process the request. If writing the response fails (stdout closed),
-        // break out of the loop so we still send telemetry.
-        let write_err = match method.as_str() {
-            "initialize" => {
-                let current_version = env!("CARGO_PKG_VERSION");
-                let version_notice = match api_client::check_version(current_version).await {
-                    Ok(info) => {
-                        let is_latest = info
-                            .get("current_is_latest")
-                            .and_then(Value::as_bool)
-                            .unwrap_or(true);
-                        if !is_latest {
-                            let latest = info
-                                .get("latest")
-                                .and_then(Value::as_str)
-                                .unwrap_or("unknown");
-                            format!("**[Update available: webact v{latest} — you have v{current_version}. Visit https://github.com/kilospark/webact/releases/latest to update.]**\n\n")
-                        } else {
-                            String::new()
-                        }
-                    }
-                    Err(_) => String::new(),
-                };
-                let instructions = format!("{version_notice}{MCP_INSTRUCTIONS}");
-
-                let response = json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
-                        "protocolVersion": "2025-11-25",
-                        "capabilities": {
-                            "tools": {}
-                        },
-                        "serverInfo": {
-                            "name": "webact-mcp",
-                            "version": current_version
-                        },
-                        "instructions": instructions
-                    }
-                });
-                write_response(&stdout, &response).err()
-            }
-            "notifications/initialized" => {
-                // No response needed for notifications
-                None
-            }
-            "tools/list" => {
-                let tools: Value = match serde_json::from_str(TOOLS_JSON) {
-                    Ok(v) => v,
+    loop {
+        tokio::select! {
+            result = lines.next_line() => {
+                let line = match result {
+                    Ok(Some(l)) => l,
+                    Ok(None) => break,    // EOF — stdin closed
                     Err(e) => {
-                        eprintln!("failed parsing embedded tools.json: {e}");
+                        eprintln!("stdin read error: {e}");
                         break;
                     }
                 };
-                let response = json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
-                        "tools": tools
+                let line = line.trim().to_string();
+                if line.is_empty() {
+                    continue;
+                }
+
+                let request: Value = match serde_json::from_str(&line) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("Invalid JSON-RPC: {e}");
+                        continue;
                     }
-                });
-                write_response(&stdout, &response).err()
-            }
-            "tools/call" => {
-                let params = request
-                    .get("params")
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                let tool_name = params
-                    .get("name")
+                };
+
+                let id = request.get("id").cloned();
+                let method = request
+                    .get("method")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                let arguments = params
-                    .get("arguments")
-                    .cloned()
-                    .unwrap_or(json!({}));
 
-                // Count tool usage for telemetry
-                let command = tool_name.strip_prefix("webact_").unwrap_or(&tool_name);
-                *ctx.tool_counts.entry(command.to_string()).or_insert(0) += 1;
+                // Process the request. If writing the response fails (stdout closed),
+                // break out of the loop so we still send final telemetry.
+                let write_err = match method.as_str() {
+                    "initialize" => {
+                        let current_version = env!("CARGO_PKG_VERSION");
+                        let version_notice = match api_client::check_version(current_version).await {
+                            Ok(info) => {
+                                let is_latest = info
+                                    .get("current_is_latest")
+                                    .and_then(Value::as_bool)
+                                    .unwrap_or(true);
+                                if !is_latest {
+                                    let latest = info
+                                        .get("latest")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("unknown");
+                                    format!("**[Update available: webact v{latest} — you have v{current_version}. Visit https://github.com/kilospark/webact/releases/latest to update.]**\n\n")
+                                } else {
+                                    String::new()
+                                }
+                            }
+                            Err(_) => String::new(),
+                        };
+                        let instructions = format!("{version_notice}{MCP_INSTRUCTIONS}");
 
-                let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
-
-                let response = match result {
-                    Ok(content) => {
-                        json!({
+                        let response = json!({
                             "jsonrpc": "2.0",
                             "id": id,
                             "result": {
-                                "content": content
+                                "protocolVersion": "2025-11-25",
+                                "capabilities": {
+                                    "tools": {}
+                                },
+                                "serverInfo": {
+                                    "name": "webact-mcp",
+                                    "version": current_version
+                                },
+                                "instructions": instructions
                             }
-                        })
+                        });
+                        write_response(&stdout, &response).err()
                     }
-                    Err(e) => {
-                        json!({
+                    "notifications/initialized" => {
+                        // No response needed for notifications
+                        None
+                    }
+                    "tools/list" => {
+                        let tools: Value = match serde_json::from_str(TOOLS_JSON) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                eprintln!("failed parsing embedded tools.json: {e}");
+                                break;
+                            }
+                        };
+                        let response = json!({
                             "jsonrpc": "2.0",
                             "id": id,
                             "result": {
-                                "content": [{
-                                    "type": "text",
-                                    "text": format!("Error: {e:#}")
-                                }],
-                                "isError": true
+                                "tools": tools
                             }
-                        })
+                        });
+                        write_response(&stdout, &response).err()
+                    }
+                    "tools/call" => {
+                        let params = request
+                            .get("params")
+                            .cloned()
+                            .unwrap_or(Value::Null);
+                        let tool_name = params
+                            .get("name")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string();
+                        let arguments = params
+                            .get("arguments")
+                            .cloned()
+                            .unwrap_or(json!({}));
+
+                        // Count tool usage for telemetry
+                        let command = tool_name.strip_prefix("webact_").unwrap_or(&tool_name);
+                        *ctx.tool_counts.entry(command.to_string()).or_insert(0) += 1;
+
+                        let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
+
+                        let response = match result {
+                            Ok(content) => {
+                                json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "content": content
+                                    }
+                                })
+                            }
+                            Err(e) => {
+                                json!({
+                                    "jsonrpc": "2.0",
+                                    "id": id,
+                                    "result": {
+                                        "content": [{
+                                            "type": "text",
+                                            "text": format!("Error: {e:#}")
+                                        }],
+                                        "isError": true
+                                    }
+                                })
+                            }
+                        };
+                        write_response(&stdout, &response).err()
+                    }
+                    _ => {
+                        // Unknown method -- return error if it has an id
+                        if let Some(id) = id {
+                            let response = json!({
+                                "jsonrpc": "2.0",
+                                "id": id,
+                                "error": {
+                                    "code": -32601,
+                                    "message": format!("Method not found: {method}")
+                                }
+                            });
+                            write_response(&stdout, &response).err()
+                        } else {
+                            None
+                        }
                     }
                 };
-                write_response(&stdout, &response).err()
-            }
-            _ => {
-                // Unknown method -- return error if it has an id
-                if let Some(id) = id {
-                    let response = json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": {
-                            "code": -32601,
-                            "message": format!("Method not found: {method}")
-                        }
-                    });
-                    write_response(&stdout, &response).err()
-                } else {
-                    None
+
+                // If stdout write failed, the host is gone
+                if let Some(e) = write_err {
+                    eprintln!("stdout write error: {e}");
+                    break;
                 }
             }
-        };
-
-        // If stdout write failed, the host is gone — break to send telemetry
-        if let Some(e) = write_err {
-            eprintln!("stdout write error: {e}");
-            break;
+            _ = telemetry_timer.tick() => {
+                // Periodic telemetry flush every 5 minutes
+                if cfg.telemetry && !ctx.tool_counts.is_empty() {
+                    let duration = ctx.session_start.elapsed().as_secs();
+                    let platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
+                    eprintln!("Periodic telemetry ({} tools, {}s)...", ctx.tool_counts.len(), duration);
+                    match api_client::send_telemetry(
+                        &ctx.session_id,
+                        env!("CARGO_PKG_VERSION"),
+                        &platform,
+                        duration,
+                        &ctx.tool_counts,
+                    )
+                    .await
+                    {
+                        Ok(()) => {
+                            eprintln!("Periodic telemetry sent.");
+                            ctx.tool_counts.clear();
+                        }
+                        Err(e) => eprintln!("Periodic telemetry failed: {e}"),
+                    }
+                }
+            }
         }
     }
 
-    // Send telemetry on shutdown
-    let cfg = config::load_config();
+    // Send final telemetry on shutdown
     if cfg.telemetry && !ctx.tool_counts.is_empty() {
         let duration = ctx.session_start.elapsed().as_secs();
         let platform = format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH);
-        eprintln!("Sending telemetry ({} tools, {}s)...", ctx.tool_counts.len(), duration);
+        eprintln!("Final telemetry ({} tools, {}s)...", ctx.tool_counts.len(), duration);
         match api_client::send_telemetry(
             &ctx.session_id,
             env!("CARGO_PKG_VERSION"),
@@ -221,8 +256,8 @@ async fn run_mcp_server() -> Result<()> {
         )
         .await
         {
-            Ok(()) => eprintln!("Telemetry sent."),
-            Err(e) => eprintln!("Telemetry failed: {e}"),
+            Ok(()) => eprintln!("Final telemetry sent."),
+            Err(e) => eprintln!("Final telemetry failed: {e}"),
         }
     }
 
