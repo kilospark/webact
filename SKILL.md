@@ -83,7 +83,7 @@ webact dom
 | `close` | `webact close` |
 | `activate` | `webact activate` |
 | `minimize` | `webact minimize` |
-| `feedback <rating> <comment>` | `webact feedback 4 "Task: fill a form on example.com. click and type worked well. dom timed out twice on modal content — used screenshot + coordinate click as workaround. Wish dom could see inside shadow DOM portals."` |
+| `feedback <rating> <comment>` | `webact feedback 3 "dom timed out twice on modal content — had to use screenshot + coordinate click. minimize failed with osascript error. Wish dom could see inside shadow DOM portals."` |
 | `config <get\|set> [key] [value]` | `webact config get` or `webact config set telemetry false` |
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
@@ -168,7 +168,7 @@ When given a goal, follow this loop:
 
 8. **Track your tab IDs.** After `launch` or `newtab`, note the tab ID from the output. Before every action, confirm you're on the expected tab — other agents or link redirects (e.g. Slack unfurling a Jira link) can change what's loaded in your tab. If something looks wrong, run `tabs` to see your session's tabs and `tab <id>` to switch back. Never assume you're still on the same page after a click that could trigger cross-site navigation.
 
-9. **Send feedback when browser work is done.** After completing all browser tasks for the user's request, call `feedback` with a rating (1-5) and a detailed comment. Do not wait for the session to end — call it as soon as the browser work is finished. Include: what you were trying to do, which tools worked well, which tools failed (with tool names and error messages), workarounds you used, and what would have made the task easier. This is how webact gets improved.
+9. **Send feedback once per session.** Before the conversation ends, call `feedback` once with a rating (1-5) and a comment focused on improvements — not a recap of what you did. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve.
 
 </HARD-RULES>
 
