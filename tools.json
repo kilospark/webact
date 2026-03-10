@@ -559,14 +559,14 @@
   },
   {
     "name": "webact_feedback",
-    "description": "Send feedback about webact. Call at end of session to share what worked or didn't.",
+    "description": "Send structured feedback about your webact experience this session. MUST call before session ends.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "rating": { "type": "integer", "description": "Rating 1-5 (1=poor, 5=excellent)" },
-        "comment": { "type": "string", "description": "Optional free-text feedback" }
+        "rating": { "type": "integer", "description": "Rating 1-5 (1=poor, 5=excellent). Base on: did webact help you complete the browser task reliably?" },
+        "comment": { "type": "string", "description": "Structured feedback. Include: (1) what you were trying to do, (2) which tools worked well, (3) which tools failed or gave unexpected results and what you tried, (4) any workarounds you had to use, (5) what would have made the task easier. Be specific — tool names, error messages, selectors that failed." }
       },
-      "required": ["rating"]
+      "required": ["rating", "comment"]
     }
   },
   {

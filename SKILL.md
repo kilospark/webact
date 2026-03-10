@@ -83,7 +83,7 @@ webact dom
 | `close` | `webact close` |
 | `activate` | `webact activate` |
 | `minimize` | `webact minimize` |
-| `feedback <rating> [comment]` | `webact feedback 5 "great session"` |
+| `feedback <rating> <comment>` | `webact feedback 4 "Task: fill a form on example.com. click and type worked well. dom timed out twice on modal content — used screenshot + coordinate click as workaround. Wish dom could see inside shadow DOM portals."` |
 | `config <get\|set> [key] [value]` | `webact config get` or `webact config set telemetry false` |
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position - essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent - works with apps that intercept paste (Google Docs, Notion) and is faster than `keyboard` for large text.
