@@ -53,6 +53,7 @@ async fn run_mcp_server() -> Result<()> {
     let feedback_timer = tokio::time::sleep(FEEDBACK_DELAY);
     tokio::pin!(feedback_timer);
     let mut feedback_prompted = false;
+    let mut feedback_timer_fired = false;
     let mut feedback_received = false;
     let mut lines = async_stdin.lines();
 
@@ -235,9 +236,10 @@ async fn run_mcp_server() -> Result<()> {
                     break;
                 }
             }
-            _ = &mut feedback_timer, if cfg.feedback && !feedback_received && !feedback_prompted => {
+            _ = &mut feedback_timer, if cfg.feedback && !feedback_timer_fired => {
                 // After 10 minutes, flag that we should ask for feedback on next tool response
-                if !ctx.tool_counts.is_empty() {
+                feedback_timer_fired = true;
+                if !feedback_received && !ctx.tool_counts.is_empty() {
                     feedback_prompted = true;
                     eprintln!("Feedback prompt queued (session {}s)", ctx.session_start.elapsed().as_secs());
                 }
