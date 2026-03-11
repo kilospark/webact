@@ -655,6 +655,10 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             }
             args
         }
+        // Zoom: level
+        "zoom" => {
+            vec_from_opt_str(arguments, "level")
+        }
         // Frame: target
         "frame" => {
             vec_from_opt_str(arguments, "target")

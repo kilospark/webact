@@ -28,6 +28,8 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **Auto-dismiss:** `navigate` automatically dismisses cookie consent banners and common popups after page load. Use `no_dismiss: true` to skip this behavior.
 
+**`zoom`:** Zoom the page in/out to see more or less content per screenshot. `zoom 50` shows 2x more content at same token cost. `zoom in`/`zoom out` adjusts by 25%. `zoom reset` returns to 100%. Coordinate clicks auto-adjust for zoom level.
+
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles and accessible names — better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
 
 **`axtree -i` (interactive mode):** Shows only actionable elements as a flat numbered list. Most token-efficient view for interaction. After running with interactive=true, use ref numbers directly as selectors: click ref 1, type into ref 3. Refs are cached per URL.

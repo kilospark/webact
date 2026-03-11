@@ -74,6 +74,7 @@ webact dom
 | `network [capture\|show]` | `webact network capture 10 api` or `webact network show cloudwatch` |
 | `block <pattern>` | `webact block images css` or `webact block off` |
 | `viewport <w> <h>` | `webact viewport mobile` or `webact viewport 1024 768` |
+| `zoom <level>` | `webact zoom 50` or `webact zoom out` or `webact zoom reset` |
 | `frames` | `webact frames` |
 | `frame <id\|selector>` | `webact frame main` or `webact frame iframe#embed` |
 | `download [path\|list]` | `webact download path /tmp/dl` or `webact download list` |

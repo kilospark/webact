@@ -1,7 +1,8 @@
 use super::*;
 
 pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
-    if let Some((x, y)) = parse_coordinates(args) {
+    if let Some((raw_x, raw_y)) = parse_coordinates(args) {
+        let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         cdp.send(
@@ -65,7 +66,8 @@ pub(crate) async fn cmd_click_dispatch(ctx: &mut AppContext, args: &[String]) ->
 }
 
 pub(crate) async fn cmd_double_click_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
-    if let Some((x, y)) = parse_coordinates(args) {
+    if let Some((raw_x, raw_y)) = parse_coordinates(args) {
+        let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         dispatch_double_click(&mut cdp, x, y).await?;
@@ -99,7 +101,8 @@ pub(crate) async fn cmd_double_click_dispatch(ctx: &mut AppContext, args: &[Stri
 }
 
 pub(crate) async fn cmd_right_click_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
-    if let Some((x, y)) = parse_coordinates(args) {
+    if let Some((raw_x, raw_y)) = parse_coordinates(args) {
+        let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         dispatch_right_click(&mut cdp, x, y).await?;
@@ -133,7 +136,8 @@ pub(crate) async fn cmd_right_click_dispatch(ctx: &mut AppContext, args: &[Strin
 }
 
 pub(crate) async fn cmd_hover_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
-    if let Some((x, y)) = parse_coordinates(args) {
+    if let Some((raw_x, raw_y)) = parse_coordinates(args) {
+        let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         cdp.send(

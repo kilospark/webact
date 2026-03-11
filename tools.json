@@ -408,6 +408,17 @@
     }
   },
   {
+    "name": "webact_zoom",
+    "description": "Zoom the page in or out. See more content at lower zoom (e.g., 50% shows 2x more) with same token cost. Coordinate clicks auto-adjust for zoom level.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "level": { "type": "string", "description": "Zoom level: 'in' (+25%), 'out' (-25%), 'reset' (100%), or a number 25-200" }
+      },
+      "required": ["level"]
+    }
+  },
+  {
     "name": "webact_frames",
     "description": "List all frames and iframes on the page.",
     "inputSchema": { "type": "object", "properties": {}, "required": [] }

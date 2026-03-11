@@ -210,6 +210,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             )
             .await
         }
+        "zoom" => cmd_zoom(ctx, args.first().map(String::as_str)).await,
         "frames" => cmd_frames(ctx).await,
         "frame" => cmd_frame(ctx, args.first().map(String::as_str)).await,
         "download" => cmd_download(ctx, args).await,

@@ -87,7 +87,8 @@ pub(super) async fn cmd_minimize(ctx: &mut AppContext) -> Result<()> {
 }
 
 pub(super) async fn cmd_human_click_dispatch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
-    if let Some((x, y)) = parse_coordinates(args) {
+    if let Some((raw_x, raw_y)) = parse_coordinates(args) {
+        let (x, y) = adjust_coords_for_zoom(ctx, raw_x, raw_y);
         let mut cdp = open_cdp(ctx).await?;
         prepare_cdp(ctx, &mut cdp).await?;
         human_click(&mut cdp, x, y).await?;

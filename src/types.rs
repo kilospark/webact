@@ -20,6 +20,7 @@ pub struct SessionState {
     pub dialog_handler: Option<DialogHandler>,
     pub block_patterns: Option<BlockPatterns>,
     pub download_dir: Option<String>,
+    pub zoom_level: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

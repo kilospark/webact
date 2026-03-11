@@ -504,6 +504,42 @@ pub(super) async fn cmd_viewport(
     Ok(())
 }
 
+pub(super) async fn cmd_zoom(ctx: &mut AppContext, level: Option<&str>) -> Result<()> {
+    let mut state = ctx.load_session_state()?;
+    let current = state.zoom_level.unwrap_or(100.0);
+
+    let new_level = match level.unwrap_or("") {
+        "in" => (current + 25.0).min(200.0),
+        "out" => (current - 25.0).max(25.0),
+        "reset" | "" => 100.0,
+        v => v
+            .parse::<f64>()
+            .context("Usage: webact zoom <in|out|reset|25-200>")?,
+    };
+
+    let new_level = new_level.clamp(25.0, 200.0);
+    let zoom_factor = new_level / 100.0;
+
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+
+    let script = format!(
+        "document.documentElement.style.zoom = '{zoom_factor}';"
+    );
+    runtime_evaluate(&mut cdp, &script, true, false).await?;
+
+    state.zoom_level = if (new_level - 100.0).abs() < 0.01 {
+        None
+    } else {
+        Some(new_level)
+    };
+    ctx.save_session_state(&state)?;
+
+    out!(ctx, "Zoom: {}%", new_level as u32);
+    cdp.close().await;
+    Ok(())
+}
+
 pub(super) async fn cmd_frames(ctx: &mut AppContext) -> Result<()> {
     let mut cdp = open_cdp(ctx).await?;
     prepare_cdp(ctx, &mut cdp).await?;

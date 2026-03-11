@@ -17,6 +17,23 @@ pub fn parse_coordinates(args: &[String]) -> Option<(f64, f64)> {
     None
 }
 
+/// Adjust coordinates from screenshot space to CSS space, accounting for zoom.
+/// With CSS zoom, visual coordinates = CSS coordinates * zoom_factor.
+/// Agent picks coords from screenshot (visual space), so divide by zoom to get CSS coords.
+pub fn adjust_coords_for_zoom(ctx: &crate::AppContext, x: f64, y: f64) -> (f64, f64) {
+    let zoom = ctx
+        .load_session_state()
+        .ok()
+        .and_then(|s| s.zoom_level)
+        .unwrap_or(100.0)
+        / 100.0;
+    if (zoom - 1.0).abs() < 0.001 {
+        (x, y)
+    } else {
+        (x / zoom, y / zoom)
+    }
+}
+
 pub fn console_arg_to_text(arg: &Value) -> String {
     arg.get("value")
         .and_then(|v| match v {
