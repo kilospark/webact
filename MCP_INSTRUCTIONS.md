@@ -6,11 +6,11 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 ## Key Concepts
 
-**Auto-brief:** State-changing tools (navigate, click, hover, press, scroll, select, waitfor) auto-return a compact page summary showing URL, title, inputs, buttons, links, and total element counts. You usually don't need a separate `dom` call.
+**Auto-brief:** State-changing tools (navigate, click, hover, press, scroll, select, waitfor) auto-return a compact page summary showing URL, title, inputs, buttons, links, and total element counts. Read it first. Do not take a screenshot after every action.
 
 **`type` vs `keyboard` vs `paste`:** Use `type` to focus a specific input and fill it. Use `keyboard` to type at the current caret position — essential for rich text editors (Slack, Google Docs, Notion) where `type`'s focus call resets the cursor. Use `paste` to insert text via a ClipboardEvent — works with apps that intercept paste and is faster than `keyboard` for large text.
 
-**`click` behavior:** Waits up to 5s for the element, scrolls it into view, then clicks. Fallbacks when CSS selectors fail: coordinates `550,197` from screenshot, or `--text Close` to find by visible text content. When multiple elements match `--text`, interactive elements (button, a, input, [role=button]) are preferred over generic containers (div, span).
+**`click` behavior:** Prefer refs from `axtree -i` or `observe`. Otherwise use a CSS selector or `--text`. Waits up to 5s for the element, scrolls it into view, then clicks. When multiple elements match `--text`, interactive elements (button, a, input, [role=button]) are preferred over generic containers (div, span). Use coordinates from a screenshot only as a last resort for canvas/image/iframe-heavy pages where ref, text, and selector targeting have all failed.
 
 **`fill`:** Fill multiple form fields in one call. Pass a `fields` object mapping CSS selectors (or ref numbers) to values: `{"#email": "user@example.com", "#password": "secret"}`. More efficient than multiple `type` calls for forms.
 
@@ -28,7 +28,7 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **Auto-dismiss:** `navigate` automatically dismisses cookie consent banners and common popups after page load. Use `no_dismiss: true` to skip this behavior.
 
-**`zoom`:** Zoom the page in/out to see more or less content per screenshot. `zoom 50` shows 2x more content at same token cost. `zoom in`/`zoom out` adjusts by 25%. `zoom reset` returns to 100%. Coordinate clicks auto-adjust for zoom level.
+**`zoom`:** Zoom the page to see more or less content per screenshot at the same token cost. `zoom 50` shows 2x more content. `zoom in`/`zoom out` adjusts by 25%. `zoom reset` returns to 100%. Coordinate clicks auto-adjust. Use `zoom out` before taking a full-page screenshot. Use `zoom in` to make targets larger before escalating to `high:true`.
 
 **`axtree` vs `dom`:** The accessibility tree shows semantic roles and accessible names — better for understanding page structure. Use `dom` when you need HTML structure/selectors; use `axtree` when you need to understand what's on the page.
 
@@ -64,16 +64,25 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 
 ## The Perceive-Act Loop
 
+Do not take a screenshot to discover page content or interactive elements unless text tools have already failed.
+
 1. **PLAN** — Break the goal into steps.
 2. **ACT** — Call the appropriate tool. State-changing tools auto-return a page brief.
-3. **DECIDE** — Read the brief. Expected state? Continue. Login wall/CAPTCHA? Tell user. Need page content? Use `read`. Need full page with interaction targets? Use `text`. Need HTML structure? Use `dom`. Goal complete? Report.
+3. **DECIDE** — Read the brief first. Then choose the cheapest sufficient perception tool:
+   - Need page content? → `read`
+   - Need actionable elements? → `axtree -i` or `observe`, then target by ref
+   - Need full visible text plus refs? → `text`
+   - Need selectors or HTML structure? → `dom`
+   - Need visual-only information? → `screenshot` as fallback, starting with `ref`/`selector` crops at default 800px width
+   - Need more context at similar cost? → `zoom out` before screenshotting
+   - Need more pixel detail? → `high:true` only after low-res was insufficient
 4. **REPEAT** until done or blocked.
 
 ## Rules
 
 1. **Read the brief after acting.** State-changing tools auto-return a page brief. Read it before deciding next steps. Use dom only when the brief isn't enough.
 
-2. **DOM before screenshot.** Always try dom first. Only use screenshot if DOM output is empty/insufficient (canvas apps, image-heavy layouts).
+2. **Text tools before screenshot.** Use `read`, `axtree -i`, `observe`, `text`, or `dom` first. Only use `screenshot` when the page is canvas/image-heavy, you need visual verification, or all text tools are insufficient. When you do screenshot, start with `ref=N` or `selector` crops — not full page.
 
 3. **Report actual content.** When the goal is information retrieval, extract and present the actual text from the page. Do not summarize — show what IS there.
 
@@ -81,45 +90,47 @@ Multiple agents share the same Chrome instance. **Never touch tabs you didn't cr
 
 5. **Wait for dynamic content.** After clicks that trigger page loads, use waitfornav or waitfor before reading DOM.
 
-6. **Use CSS selectors for targeting.** Identify elements from DOM output using CSS selectors (id, class, aria-label, data-testid, structural selectors).
+6. **Prefer ref-based targeting.** Use refs from `axtree -i`, `observe`, or `text` for click, type, select, hover, screenshot crops, and all other interactions. Use CSS selectors when you need DOM structure or a ref is not available. Use coordinates from screenshots only as a last resort for canvas/iframe surfaces.
 
 7. **Clean up tabs.** Close tabs opened with newtab when done. Run tabs before reporting completion to check for orphans.
 
 8. **Track tab IDs.** Note tab IDs from launch/newtab output. Verify you're on the expected tab before acting.
 
-## Choosing the Right Reading Tool
+## Choosing the Right Perception Tool
 
-| Need | Tool | Output |
-|------|------|--------|
-| Page content (articles, docs) | `read` | Clean text, no UI chrome |
-| Full page + interaction targets | `text` | Text + numbered refs |
-| Interactive elements only | `axtree -i` | Flat list of clickable/typeable elements |
-| HTML structure/selectors | `dom` | Compact HTML |
-| Visual layout (expensive) | `screenshot` | JPEG image, 800px wide default. Use ref/selector to crop. |
-| Web search results | `search` | Clean extracted results from Google/Bing/DDG |
-| Multiple pages at once | `readurls` | Combined text from parallel tab reads |
+Stop at the first tool that gives you what you need. Do not use `screenshot` to read text or discover interactive elements.
 
-## Token Efficiency
+| Need | Tool | Cost |
+|------|------|------|
+| Page content (articles, docs) | `read` | Low |
+| Actionable elements | `axtree -i` or `observe` | Low |
+| Full visible text + refs | `text` | Low-Medium |
+| HTML structure/selectors | `dom` | Medium |
+| Web search results | `search` | Low |
+| Multiple pages at once | `readurls` | Low per page |
+| Visual of one element | `screenshot ref=N` or `selector=...` | Medium |
+| Full page visual (last resort) | `screenshot` | High (~500+ tokens) |
 
-For large SPAs, manage output size:
-- `read` — most compact for content (strips nav/sidebar/ads)
-- `text` with max_tokens — full page with refs, capped
-- dom with selector — scope to a specific part
-- dom with max_tokens — cap output size
-- axtree interactive — interactive elements only
-- screenshot with ref=N — crop to a specific element by ref number (cheapest visual option)
-- screenshot with selector — crop to a specific element by CSS selector
-- screenshot defaults to 800px wide — use high:true only when pixel precision is needed
+## Token Efficiency: Escalation Order
 
-## Finding Elements (priority order)
+When you need more information, stop at the first sufficient tool:
 
-1. **id**: #search-input
-2. **data-testid**: [data-testid="submit-btn"]
-3. **aria-label**: [aria-label="Search"]
-4. **class**: .nav-link
-5. **structural**: form input[type="email"]
-6. **text search**: click with --text target — finds smallest visible interactive element containing the text
-7. **coordinates**: click at x,y from screenshot — last resort for canvas/iframes
+1. `read` — page content, strips nav/ads
+2. `axtree -i` or `observe` — actionable elements with refs
+3. `text` — full visible text plus refs (cap with `max_tokens`)
+4. `dom` — HTML structure (scope with `selector` or cap with `max_tokens`)
+5. `screenshot ref=N` or `selector=...` — visual of one element at default 800px width
+6. `screenshot` — full page visual fallback at default 800px width
+7. `zoom out` — show more content in the same screenshot budget before escalating
+8. `screenshot` with `high:true` — full resolution, only when low-res is insufficient
+
+## Targeting Elements (priority order)
+
+1. **refs**: from `axtree -i`, `observe`, or `text` — click 3, type 5 hello, screenshot ref=7
+2. **text search**: `click --text Submit` — finds smallest visible interactive element containing the text
+3. **CSS selectors**: #id, [data-testid="..."], [aria-label="..."], .class, structural
+4. **eval**: `eval` with querySelector when the element is present but hard to target
+5. **coordinates**: click at x,y from screenshot — last resort for canvas/iframes only
 
 ## Common Patterns
 
@@ -157,11 +168,11 @@ When webact is available, **always use it instead of WebFetch or WebSearch** for
 
 **Portals, shadow DOM, and overlays:**
 - Modal dialogs and popups render in portal containers — CSS selectors from parent context won't find them
-- click --text finds elements inside portals and across shadow DOM boundaries
-- dom traverses open shadow roots — web component internals are visible
-- axtree includes deep overlays and nested menus
-- For elements with no text, use screenshot + coordinate click
-- When all else fails, use eval to find and .click() directly
+- `axtree -i` and `observe` include deep overlays, nested menus, and portal content — try refs first
+- `click --text` finds elements inside portals and across shadow DOM boundaries
+- `dom` traverses open shadow roots — web component internals are visible
+- When all else fails, use `eval` to find and `.click()` directly
+- Coordinate clicks from screenshots are a last resort for canvas/iframe-only surfaces
 
 ## Telemetry
 
