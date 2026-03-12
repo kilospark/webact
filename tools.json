@@ -98,7 +98,8 @@
         "high": { "type": "boolean", "description": "Capture at full viewport resolution instead of default 800px wide" },
         "format": { "type": "string", "enum": ["jpeg", "png"], "description": "Image format (default: jpeg)" },
         "quality": { "type": "integer", "description": "JPEG quality 1-100 (default: 80). Ignored for PNG." },
-        "width": { "type": "integer", "description": "Scale output to this width in pixels (preserves aspect ratio)" }
+        "width": { "type": "integer", "description": "Scale output to this width in pixels (preserves aspect ratio)" },
+        "full": { "type": "boolean", "description": "Capture entire scrollable page, not just the viewport" }
       },
       "required": []
     }

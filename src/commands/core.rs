@@ -981,6 +981,7 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
     let mut ref_id: Option<String> = None;
     let mut pad: u32 = 48;
     let mut high_res = false;
+    let mut full_page = false;
 
     for arg in args {
         if let Some(v) = arg.strip_prefix("--selector=") {
@@ -997,6 +998,8 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
             pad = v.parse().unwrap_or(48);
         } else if arg == "--high" {
             high_res = true;
+        } else if arg == "--full" {
+            full_page = true;
         }
     }
 
@@ -1051,10 +1054,10 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         }
     }
 
-    // Get viewport dimensions and device pixel ratio
+    // Get viewport dimensions, device pixel ratio, and full document height
     let vp_result = runtime_evaluate(
         &mut cdp,
-        "[window.innerWidth, window.innerHeight, window.devicePixelRatio]",
+        "[window.innerWidth, window.innerHeight, window.devicePixelRatio, Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)]",
         true,
         false,
     )
@@ -1074,12 +1077,17 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         .and_then(|a| a.get(2))
         .and_then(Value::as_f64)
         .unwrap_or(1.0);
+    let doc_height = vp_arr
+        .and_then(|a| a.get(3))
+        .and_then(Value::as_f64)
+        .unwrap_or(viewport_h);
 
     // Determine effective scale:
     // - Explicit --width takes priority
     // - --high captures at 1x CSS pixels (no downscale)
     // - Default: scale to 800px wide for token efficiency (~484 tokens vs ~1384)
     //   Coordinates in the screenshot still match page coordinates via proportional mapping.
+    let capture_h = if full_page { doc_height } else { viewport_h };
     let has_clip = params.get("clip").is_some();
     let effective_scale = if let Some(target_w) = scale_width {
         // Explicit --width
@@ -1102,10 +1110,23 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
             params["clip"] = json!({
                 "x": 0, "y": 0,
                 "width": viewport_w,
-                "height": viewport_h,
+                "height": capture_h,
                 "scale": scale
             });
         }
+    } else if full_page && !has_clip {
+        // Full page without scaling — set clip to full document height
+        params["clip"] = json!({
+            "x": 0, "y": 0,
+            "width": viewport_w,
+            "height": capture_h,
+            "scale": 1
+        });
+    }
+
+    // captureBeyondViewport is needed for full-page screenshots
+    if full_page {
+        params["captureBeyondViewport"] = json!(true);
     }
 
     let result = cdp.send("Page.captureScreenshot", params.clone()).await?;

@@ -835,6 +835,9 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             if arguments.get("high").and_then(Value::as_bool).unwrap_or(false) {
                 args.push("--high".to_string());
             }
+            if arguments.get("full").and_then(Value::as_bool).unwrap_or(false) {
+                args.push("--full".to_string());
+            }
             args
         }
         // Feedback: rating + optional comment
