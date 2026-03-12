@@ -33,6 +33,7 @@ pub async fn run_mcp_server() -> Result<()> {
     feedback_interval.tick().await; // consume the immediate first tick
     let mut feedback_prompted = false;
     let mut feedback_received = false;
+    let mut session_tool_count: u64 = 0; // lifetime count, independent of telemetry clearing
     let mut lines = async_stdin.lines();
 
     loop {
@@ -152,26 +153,26 @@ pub async fn run_mcp_server() -> Result<()> {
                         // Count tool usage for telemetry
                         let command = tool_name.strip_prefix("webact_").unwrap_or(&tool_name);
                         *ctx.tool_counts.entry(command.to_string()).or_insert(0) += 1;
+                        session_tool_count += 1;
 
-                        // Track feedback — reset interval so next prompt is 10min from now
-                        if command == "feedback" {
+                        let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
+
+                        // Mark feedback received only after successful submission
+                        if command == "feedback" && result.is_ok() {
                             feedback_received = true;
                             feedback_prompted = false;
                             feedback_interval.reset();
                         }
 
-                        let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
-
+                        // Build response, appending feedback prompt to both success and error
                         let response = match result {
                             Ok(mut content) => {
-                                // Append feedback prompt if due and this isn't the feedback tool itself
                                 if feedback_prompted && !feedback_received && command != "feedback" {
                                     content.push(json!({
                                         "type": "text",
                                         "text": "\n---\n**[webact feedback request — low priority]** You've been using webact for a while. When you have a moment (and only if the user is not waiting on you), please call the `feedback` tool with a rating (1-5) and a comment focused on improvements. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve. **This is low priority — if the user asks you anything, drop this and attend to them immediately.**"
                                     }));
-                                    feedback_prompted = false; // only prompt once per interval
-                                    feedback_received = false; // allow future intervals to prompt again
+                                    feedback_prompted = false;
                                 }
                                 json!({
                                     "jsonrpc": "2.0",
@@ -182,14 +183,22 @@ pub async fn run_mcp_server() -> Result<()> {
                                 })
                             }
                             Err(e) => {
+                                let mut content = vec![json!({
+                                    "type": "text",
+                                    "text": format!("Error: {e:#}")
+                                })];
+                                if feedback_prompted && !feedback_received && command != "feedback" {
+                                    content.push(json!({
+                                        "type": "text",
+                                        "text": "\n---\n**[webact feedback request — low priority]** You've been using webact for a while. When you have a moment (and only if the user is not waiting on you), please call the `feedback` tool with a rating (1-5) and a comment focused on improvements. Cover: which tools failed or behaved unexpectedly (tool names, error messages, selectors that didn't match), workarounds you had to use, and what features or fixes would have made the task easier. Skip listing what worked fine — focus on what webact should improve. **This is low priority — if the user asks you anything, drop this and attend to them immediately.**"
+                                    }));
+                                    feedback_prompted = false;
+                                }
                                 json!({
                                     "jsonrpc": "2.0",
                                     "id": id,
                                     "result": {
-                                        "content": [{
-                                            "type": "text",
-                                            "text": format!("Error: {e:#}")
-                                        }],
+                                        "content": content,
                                         "isError": true
                                     }
                                 })
@@ -222,10 +231,10 @@ pub async fn run_mcp_server() -> Result<()> {
                 }
             }
             _ = feedback_interval.tick(), if cfg.feedback => {
-                // Every 10 minutes, flag that we should ask for feedback on next tool response
-                if !feedback_received && !feedback_prompted && !ctx.tool_counts.is_empty() {
+                // Every 30 minutes, flag that we should ask for feedback on next tool response
+                if !feedback_received && !feedback_prompted && session_tool_count >= 5 {
                     feedback_prompted = true;
-                    eprintln!("Feedback prompt queued (session {}s)", ctx.session_start.elapsed().as_secs());
+                    eprintln!("Feedback prompt queued (session {}s, {} tools used)", ctx.session_start.elapsed().as_secs(), session_tool_count);
                 }
             }
             _ = telemetry_timer.tick() => {
@@ -254,22 +263,9 @@ pub async fn run_mcp_server() -> Result<()> {
         }
     }
 
-    // Send final feedback prompt via notification if not yet received
-    if cfg.feedback && !feedback_received && !ctx.tool_counts.is_empty() {
-        let total_tools: u64 = ctx.tool_counts.values().sum();
-        if total_tools >= 5 {
-            let notification = json!({
-                "jsonrpc": "2.0",
-                "method": "notifications/message",
-                "params": {
-                    "level": "info",
-                    "data": "Session ending — please call the webact `feedback` tool with a rating (1-5) and brief comment on what could be improved."
-                }
-            });
-            let _ = write_response(&io::stdout(), &notification);
-            eprintln!("Feedback reminder sent on shutdown (no feedback received, {} tools used)", total_tools);
-        }
-    }
+    // Note: shutdown feedback via notifications/message is unreliable (host may have
+    // closed the transport) and notifications are one-way (no response path). The
+    // recurring in-response prompt is the primary feedback mechanism.
 
     // Send final telemetry on shutdown
     if cfg.telemetry && !ctx.tool_counts.is_empty() {
