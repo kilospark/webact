@@ -185,6 +185,10 @@ try
 end try"#,
             name = browser_name
         ))?;
+    } else if cfg!(target_os = "linux") {
+        // Best-effort: try wmctrl, then xdotool. Both are X11 tools;
+        // on Wayland without these, this is a no-op (CDP restore handles the window).
+        let _ = activate_browser_linux(browser_name);
     }
     Ok(())
 }
@@ -201,6 +205,44 @@ pub fn minimize_browser(browser_name: &str) -> Result<()> {
 end tell"#,
             name = browser_name
         ))?;
+    } else if cfg!(target_os = "linux") {
+        let _ = minimize_browser_linux(browser_name);
+    }
+    Ok(())
+}
+
+fn activate_browser_linux(browser_name: &str) -> Result<()> {
+    // Try wmctrl first (more reliable for raising + focusing)
+    if let Ok(output) = Command::new("wmctrl").args(["-a", browser_name]).output() {
+        if output.status.success() {
+            return Ok(());
+        }
+    }
+    // Fallback: xdotool search by name, activate first match
+    if let Ok(output) = Command::new("xdotool")
+        .args(["search", "--name", browser_name])
+        .output()
+    {
+        if let Some(wid) = String::from_utf8_lossy(&output.stdout).lines().next() {
+            let _ = Command::new("xdotool")
+                .args(["windowactivate", wid])
+                .output();
+        }
+    }
+    Ok(())
+}
+
+fn minimize_browser_linux(browser_name: &str) -> Result<()> {
+    // Try xdotool: search by name, minimize all matches
+    if let Ok(output) = Command::new("xdotool")
+        .args(["search", "--name", browser_name])
+        .output()
+    {
+        for wid in String::from_utf8_lossy(&output.stdout).lines() {
+            let _ = Command::new("xdotool")
+                .args(["windowminimize", wid])
+                .output();
+        }
     }
     Ok(())
 }
