@@ -35,22 +35,27 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
     fs::create_dir_all(&user_data_dir)
         .with_context(|| format!("failed creating {}", user_data_dir.display()))?;
 
+    // Remember the frontmost app so we can reactivate it after Chrome launches.
+    #[cfg(target_os = "macos")]
+    let prev_app = Command::new("osascript")
+        .args(["-e", r#"tell application "System Events" to get name of first process whose frontmost is true"#])
+        .output()
+        .ok()
+        .and_then(|o| if o.status.success() {
+            Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+        } else {
+            None
+        });
+
     let chrome_args = [
         format!("--remote-debugging-port={}", ctx.cdp_port),
         format!("--user-data-dir={}", user_data_dir.to_string_lossy()),
         "--no-first-run".to_string(),
         "--no-default-browser-check".to_string(),
+        "--no-startup-window".to_string(),
     ];
 
-    let mut command = if cfg!(target_os = "macos") {
-        // Use `open -gja` to launch hidden and without stealing focus
-        let mut cmd = Command::new("open");
-        cmd.arg("-gja").arg(&browser.name).arg("--args");
-        for a in &chrome_args {
-            cmd.arg(a);
-        }
-        cmd
-    } else {
+    let mut command = {
         let mut cmd = Command::new(&browser.path);
         for a in &chrome_args {
             cmd.arg(a);
@@ -79,7 +84,17 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext) -> Result<()> {
             fs::write(&port_file, ctx.cdp_port.to_string())
                 .with_context(|| format!("failed writing {}", port_file.display()))?;
             out!(ctx, "{} launched successfully.", browser.name);
-            return cmd_connect(ctx).await;
+            let result = cmd_connect(ctx).await;
+
+            // Reactivate the app that had focus before Chrome launched.
+            #[cfg(target_os = "macos")]
+            if let Some(ref app) = prev_app {
+                let _ = Command::new("osascript")
+                    .args(["-e", &format!(r#"tell application "{app}" to activate"#)])
+                    .output();
+            }
+
+            return result;
         }
     }
 
@@ -139,11 +154,13 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
     fs::write(ctx.last_session_file(), &session_id)
         .context("failed writing last session pointer")?;
 
-    // Minimize this session's window so Chrome doesn't steal focus.
-    // Only auto-minimize when we own an isolated window. If we fell back to a
-    // shared tab, app-wide minimize would interfere with other agents/user tabs.
+    // Minimize so Chrome doesn't steal focus from the user.
+    // Prefer per-window CDP minimize when we own an isolated window;
+    // fall back to app-wide AppleScript minimize otherwise.
     if let (Some(wid), Some(ws_url)) = (window_id, &new_tab.web_socket_debugger_url) {
         let _ = minimize_window_by_id(ctx, ws_url, wid).await;
+    } else if let Some(name) = &ctx.launch_browser_name {
+        let _ = minimize_browser(name);
     }
 
     out!(ctx, "Session: {session_id}");
