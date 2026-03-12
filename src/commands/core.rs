@@ -1010,29 +1010,29 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
     let mut selector: Option<String> = None;
     let mut format = "jpeg".to_string();
     let mut quality: u32 = 80;
-    let mut scale_width: Option<u32> = None;
     let mut ref_id: Option<String> = None;
     let mut pad: u32 = 48;
-    let mut high_res = false;
     let mut full_page = false;
+    let mut output_path: Option<String> = None;
+    let mut scale_factor: Option<f64> = None;
 
     for arg in args {
-        if let Some(v) = arg.strip_prefix("--selector=") {
+        if let Some(v) = arg.strip_prefix("--output=") {
+            output_path = Some(v.to_string());
+        } else if let Some(v) = arg.strip_prefix("--selector=") {
             selector = Some(v.to_string());
         } else if let Some(v) = arg.strip_prefix("--format=") {
             format = if v == "png" { "png".to_string() } else { "jpeg".to_string() };
         } else if let Some(v) = arg.strip_prefix("--quality=") {
             quality = v.parse().unwrap_or(80).clamp(1, 100);
-        } else if let Some(v) = arg.strip_prefix("--width=") {
-            scale_width = v.parse().ok();
         } else if let Some(v) = arg.strip_prefix("--ref=") {
             ref_id = Some(v.to_string());
         } else if let Some(v) = arg.strip_prefix("--pad=") {
             pad = v.parse().unwrap_or(48);
-        } else if arg == "--high" {
-            high_res = true;
         } else if arg == "--full" {
             full_page = true;
+        } else if let Some(v) = arg.strip_prefix("--scale=") {
+            scale_factor = v.parse().ok();
         }
     }
 
@@ -1115,24 +1115,15 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         .and_then(Value::as_f64)
         .unwrap_or(viewport_h);
 
-    // Determine effective scale:
-    // - Explicit --width takes priority
-    // - --high captures at 1x CSS pixels (no downscale)
-    // - Default: scale to 800px wide for token efficiency (~484 tokens vs ~1384)
-    //   Coordinates in the screenshot still match page coordinates via proportional mapping.
+    // Scale: explicit --scale overrides, otherwise default to 800px wide.
+    // Ref/selector crops default to 1x CSS pixels (already small).
     let capture_h = if full_page { doc_height } else { viewport_h };
     let has_clip = params.get("clip").is_some();
-    let effective_scale = if let Some(target_w) = scale_width {
-        // Explicit --width
-        Some(target_w as f64 / viewport_w)
-    } else if high_res {
-        // --high: capture at 1x CSS pixels (undo HiDPI if present)
-        if dpr > 1.0 { Some(1.0 / dpr) } else { None }
+    let effective_scale = if let Some(sf) = scale_factor {
+        Some(sf / dpr)
     } else if has_clip && ref_id.is_some() {
-        // Ref/selector crop: capture at 1x (element crops are already small)
         if dpr > 1.0 { Some(1.0 / dpr) } else { None }
     } else {
-        // Default: scale to 800px wide
         Some(800.0 / (viewport_w * dpr))
     };
 
@@ -1171,12 +1162,16 @@ pub(super) async fn cmd_screenshot(ctx: &mut AppContext, args: &[String]) -> Res
         .decode(data)
         .context("Failed to decode screenshot data")?;
 
-    let sid = ctx
-        .current_session_id
-        .clone()
-        .unwrap_or_else(|| "default".to_string());
     let ext = if format == "png" { "png" } else { "jpeg" };
-    let out = ctx.tmp_dir().join(format!("webact-screenshot-{sid}.{ext}"));
+    let out = if let Some(ref p) = output_path {
+        PathBuf::from(p)
+    } else {
+        let sid = ctx
+            .current_session_id
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+        ctx.tmp_dir().join(format!("webact-screenshot-{sid}.{ext}"))
+    };
 
     fs::write(&out, &bytes).with_context(|| format!("failed writing {}", out.display()))?;
 

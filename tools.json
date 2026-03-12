@@ -90,18 +90,18 @@
   },
   {
     "name": "webact_screenshot",
-    "description": "Capture a screenshot. Expensive (~500+ vision tokens). Prefer dom/axtree/read/text for most tasks. Use ref or selector to crop to a specific element. Defaults to 800px wide for token efficiency; use high:true for full resolution.",
+    "description": "Capture a screenshot. Expensive (~500+ vision tokens). Prefer dom/axtree/read/text for most tasks. Use ref or selector to crop to a specific element. Defaults to 800px wide; use scale to adjust (e.g. scale:0.5 for half size). Use output to save to a file path without returning base64.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "ref": { "type": "integer", "description": "Ref number from axtree -i or observe. Crops to that element with padding. Most efficient way to screenshot a specific element." },
         "pad": { "type": "integer", "description": "Padding in pixels around ref/selector crop (default: 48)" },
         "selector": { "type": "string", "description": "CSS selector to capture only that element's bounding box" },
-        "high": { "type": "boolean", "description": "Capture at full viewport resolution instead of default 800px wide" },
+        "scale": { "type": "number", "description": "Scale factor (e.g. 0.5 = half size, 2 = double). Default scales to 800px wide. Coordinates map proportionally: page_x = screenshot_x / scale." },
         "format": { "type": "string", "enum": ["jpeg", "png"], "description": "Image format (default: jpeg)" },
         "quality": { "type": "integer", "description": "JPEG quality 1-100 (default: 80). Ignored for PNG." },
-        "width": { "type": "integer", "description": "Scale output to this width in pixels (preserves aspect ratio)" },
-        "full": { "type": "boolean", "description": "Capture entire scrollable page, not just the viewport" }
+        "full": { "type": "boolean", "description": "Capture entire scrollable page, not just the viewport" },
+        "output": { "type": "string", "description": "Save to this path instead of returning the image. Returns text confirmation only, no base64." }
       },
       "required": []
     }

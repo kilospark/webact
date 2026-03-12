@@ -352,9 +352,12 @@ async fn handle_tool_call(
     // Drain the output buffer
     let output = ctx.drain_output();
 
-    // Special handling for screenshot: return image content
+    // Special handling for screenshot: return image content (unless saved to custom path)
     if command == "screenshot" {
-        return handle_screenshot_output(&output);
+        let has_output_path = arguments.get("output").and_then(Value::as_str).is_some_and(|s| !s.is_empty());
+        if !has_output_path {
+            return handle_screenshot_output(&output);
+        }
     }
 
     // Return text content
@@ -809,14 +812,16 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
             if let Some(q) = arguments.get("quality").and_then(Value::as_i64) {
                 args.push(format!("--quality={q}"));
             }
-            if let Some(w) = arguments.get("width").and_then(Value::as_i64) {
-                args.push(format!("--width={w}"));
-            }
-            if arguments.get("high").and_then(Value::as_bool).unwrap_or(false) {
-                args.push("--high".to_string());
+            if let Some(s) = arguments.get("scale").and_then(Value::as_f64) {
+                args.push(format!("--scale={s}"));
             }
             if arguments.get("full").and_then(Value::as_bool).unwrap_or(false) {
                 args.push("--full".to_string());
+            }
+            if let Some(o) = arguments.get("output").and_then(Value::as_str) {
+                if !o.is_empty() {
+                    args.push(format!("--output={o}"));
+                }
             }
             args
         }
