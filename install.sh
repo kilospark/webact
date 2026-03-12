@@ -156,10 +156,14 @@ add_mcp_config() {
 
   if command -v python3 >/dev/null 2>&1; then
     if python3 -c "
-import json, sys
+import json, re, sys
 p, cmd = sys.argv[1], sys.argv[2]
 with open(p) as f:
-    data = json.load(f)
+    raw = f.read()
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    data = json.loads(re.sub(r',(\s*[}\]])', r'\1', raw))
 data.setdefault('mcpServers', {})['webact'] = {'command': cmd, 'args': ['mcp']}
 with open(p, 'w') as f:
     json.dump(data, f, indent=2)
