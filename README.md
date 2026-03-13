@@ -149,9 +149,19 @@ webact newtab [url]            # Open a new tab in this session
 webact close                   # Close current tab
 webact search <query>          # Search the web (Google, Bing, DuckDuckGo, or custom)
 webact readurls <url1> <url2>  # Read multiple URLs in parallel
+webact batch <json>            # Execute multiple actions sequentially
+webact grid [spec]             # Overlay coordinate grid (off to remove)
+webact setup                   # Configure MCP clients without re-download
+webact kill                    # Kill custom profile session
+webact media <features>        # Emulate media (dark, light, print, reset)
+webact animations <action>     # Control animations (pause, resume)
+webact security <action>       # Control security (ignore-certs, strict)
+webact storage <action>        # Manage storage (clear, get, set, remove)
+webact sw <action>             # Manage service workers (list, unregister)
 webact back / forward / reload # Navigation history
 webact activate                # Bring browser window to front (macOS)
 webact minimize                # Minimize browser window (macOS)
+webact feedback <rating> [txt] # Send feedback (1-5)
 ```
 
 **Ref-based targeting:** After `axtree -i`, `observe`, or `text`, use the ref numbers directly as selectors - `click 1`, `type 3 hello`. Cached per URL.

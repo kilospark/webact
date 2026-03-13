@@ -53,6 +53,18 @@ Implemented in Rust (CLI parity with JS command surface):
 - `tab <id>`
 - `newtab [url]`
 - `close`
+- `kill`
+- `batch <json>`
+- `grid [spec]`
+- `setup`
+- `media ...`
+- `animations ...`
+- `security ...`
+- `storage ...`
+- `sw ...`
+- `search ...`
+- `readurls ...`
+- `feedback ...`
 - `activate`
 - `minimize`
 - `humanclick`

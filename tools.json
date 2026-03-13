@@ -723,7 +723,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Tab ID (from webact_tabs output)"
+          "description": "Tab ID (from tabs output)"
         }
       },
       "required": [

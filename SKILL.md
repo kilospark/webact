@@ -7,7 +7,7 @@ description: Use when the user asks to interact with a website, browse the web, 
 
 Control Chrome directly via the Chrome DevTools Protocol. Raw CDP through a CLI helper.
 
-**If you have webact MCP tools available (e.g. `webact_navigate`, `webact_click`), stop here and use those instead.** The MCP server handles session management and tab isolation automatically. The rest of this file is for CLI-only environments where MCP tools are not available.
+**If you have webact MCP tools available (e.g. `navigate`, `click`), stop here and use those instead.** The MCP server handles session management and tab isolation automatically. The rest of this file is for CLI-only environments where MCP tools are not available.
 
 ## How to Run Commands
 
@@ -39,10 +39,21 @@ webact dom
 
 | Command | Example |
 |---------|---------|
+| `launch [options]` | `webact launch` or `webact launch --profile shopping-bot` |
 | `navigate <url>` | `webact navigate https://example.com` |
+| `kill` | `webact kill` |
+| `batch <json>` | `webact batch '{"actions": [{"tool": "click", "target": "..."}]}'` |
+| `grid [spec]` | `webact grid` or `webact grid 8x6` or `webact grid off` |
+| `setup` | `webact setup` |
+| `media <features>` | `webact media dark` or `webact media reset` |
+| `animations <action>` | `webact animations pause` or `webact animations resume` |
+| `security <action>` | `webact security ignore-certs` or `webact security strict` |
+| `storage <action>` | `webact storage clear everything` or `webact storage get` |
+| `sw <action>` | `webact sw unregister` or `webact sw list` |
 | `back` | `webact back` |
 | `forward` | `webact forward` |
 | `reload` | `webact reload` |
+| `feedback <1-5> [text]` | `webact feedback 5 "Works great!"` |
 | `read [selector] [--tokens=N]` | `webact read` or `webact read article` or `webact read --tokens=2000` |
 | `text [selector] [--tokens=N]` | `webact text` or `webact text --tokens=2000` |
 | `dom [selector] [--tokens=N]` | `webact dom` or `webact dom .results` or `webact dom --tokens=1000` |
@@ -121,6 +132,37 @@ webact dom
 **`viewport` presets:** `mobile` (375x667), `iphone` (390x844), `ipad` (820x1180), `tablet` (768x1024), `desktop` (1280x800). Or specify exact width and height.
 
 **`frames`:** Lists all frames/iframes on the page. Use `frame <id>` to switch context, `frame main` to return to the top frame.
+
+**Profiles:** Use profiles to launch isolated browser instances with separate data.
+- `webact launch` uses the default shared profile.
+- `webact launch --profile shopping-bot` creates or reuses a named profile.
+- `webact launch --profile new` auto-generates a profile ID and returns it.
+- Each profile runs its own browser process on its own port. Custom profiles can be killed with `webact kill`.
+
+**`batch`:** Execute multiple actions sequentially in one call. Use a JSON array of actions. Smart waits are applied after state-changing actions (`navigate`, `click`, `fill`, `select`, `type`).
+```bash
+webact batch '{"actions": [{"tool": "click", "target": "--text Submit"}, {"tool": "waitfornav"}]}'
+```
+
+**`grid`:** Overlay a coordinate grid for targeting elements in canvas/image-heavy apps. Each cell displays its center coordinate.
+- `webact grid` (default 10x10)
+- `webact grid 8x6` (rows x cols)
+- `webact grid 50` (50px cell size)
+- `webact grid off` (remove overlay)
+
+**`setup`:** Register webact as an MCP server with all detected clients (Claude Code, Cursor, Windsurf, Claude Desktop, etc.) without re-downloading the binary.
+
+**Troubleshooting SPAs and Stale Pages:**
+- **`sw unregister`**: remove service workers that cache old content.
+- **`storage clear everything`**: clear all storage, caches, cookies, and service workers for the origin.
+- **`reload`**: force a fresh page load.
+
+**Media and Animations:**
+- **`media dark`**: switch to dark color scheme.
+- **`media reset`**: restore defaults.
+- **`animations pause`**: freeze JS animations (sets playback rate to 0).
+- **`animations resume`**: restore normal playback.
+- **`security ignore-certs`**: accept self-signed certificates for the current origin.
 
 ### Tab Isolation
 
