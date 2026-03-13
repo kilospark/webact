@@ -195,6 +195,51 @@ When testing dark mode or print layout:
 - **`media print`** — switch to print media type
 - **`media reset`** — restore defaults
 
+## Profiles
+
+Use profiles to launch isolated browser instances with separate data:
+
+- **`launch`** — uses the default shared profile
+- **`launch --profile shopping-bot`** — creates/reuses a named profile with its own browser
+- **`launch --profile new`** — auto-generates a profile ID, returns it for future use
+- **`launch --browser brave --profile test`** — use Brave for this profile
+
+Each profile runs its own browser process on its own port. The default profile is persistent and shared — it cannot be killed. Custom profiles can be killed with `kill`, which terminates the browser and cleans up the profile directory.
+
+## Batch Actions
+
+Use `batch` to execute multiple actions in one call, reducing round-trips:
+
+```json
+{"actions": [
+  {"tool": "click", "target": "--text Submit"},
+  {"tool": "waitfornav"},
+  {"tool": "screenshot", "output": "/tmp/result.png"},
+  {"tool": "press", "key": "Escape", "wait": 500}
+], "delay": 0}
+```
+
+- Actions run sequentially using the same arg format as individual tools
+- Stops on first error, returns all results up to that point
+- **Smart waits:** auto-waits 500ms after state-changing actions (navigate, click, fill, select, type)
+- **Per-action `wait`:** override smart default with ms delay
+- **Global `delay`:** ms between every action (additive with smart waits)
+
+## Grid Overlay
+
+For canvas/image-heavy apps where DOM targeting fails, overlay a coordinate grid:
+
+- **`grid`** — default 10x10 grid with center coordinates
+- **`grid 8x6`** — 8 columns, 6 rows
+- **`grid 50`** — 50px cell size
+- **`grid off`** — remove overlay
+
+Take a screenshot after applying the grid to see coordinate mappings, then click by coordinates.
+
+## Setup
+
+Run `setup` after installing a new MCP client to register webact without re-downloading the binary.
+
 ## Telemetry
 
 webact collects anonymous usage statistics (which tools were used, session duration, platform). No PII is collected. Opt out by setting `telemetry: false` in `~/.config/webact/webact.json` or calling `config set telemetry false`.

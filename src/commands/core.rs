@@ -1,9 +1,6 @@
 use super::*;
 
 pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<()> {
-    let user_data_dir = ctx.chrome_profile_dir();
-    let port_file = ctx.chrome_port_file();
-
     // Parse --browser <name> argument, fall back to config
     let preferred_browser = args.windows(2).find_map(|pair| {
         if pair[0] == "--browser" {
@@ -13,11 +10,41 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         }
     }).or_else(|| crate::config::load_config().browser);
 
+    // Parse --profile <name> argument
+    let profile = args.windows(2).find_map(|pair| {
+        if pair[0] == "--profile" {
+            Some(pair[1].clone())
+        } else {
+            None
+        }
+    }).unwrap_or_else(|| "default".to_string());
+
+    // Handle --profile new: generate random ID
+    let profile = if profile == "new" {
+        format!("webact-{:08x}", rand::random::<u32>())
+    } else {
+        profile
+    };
+
+    ctx.current_profile = profile.clone();
+
+    let user_data_dir = ctx.chrome_profile_dir_for(&profile);
+    let port_file = ctx.chrome_port_file_for(&profile);
+
     if let Ok(saved) = fs::read_to_string(&port_file) {
         if let Ok(saved_port) = saved.trim().parse::<u16>() {
             ctx.cdp_port = saved_port;
             if get_debug_tabs(ctx).await.is_ok() {
-                ctx.launch_browser_name = find_browser().map(|b| b.name);
+                // Bug fix: error if --browser specified and differs from running browser
+                if profile == "default" {
+                    if let Some(ref wanted) = preferred_browser {
+                        let running = detect_browser_from_port(ctx).await.unwrap_or_default();
+                        if !running.to_lowercase().contains(&wanted.to_lowercase()) {
+                            bail!("Default browser already running ({running}). Use --profile <name> to launch a separate {wanted} instance.");
+                        }
+                    }
+                }
+                ctx.launch_browser_name = detect_browser_from_port(ctx).await;
                 out!(ctx, "Browser already running.");
                 return cmd_connect(ctx).await;
             }
@@ -48,7 +75,7 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
     ctx.launch_browser_name = Some(browser.name.clone());
 
     // Migrate legacy profile from $TMPDIR to ~/.webact/profiles/default
-    if !user_data_dir.exists() {
+    if profile == "default" && !user_data_dir.exists() {
         let legacy = env::temp_dir().join("webact-chrome-profile");
         if legacy.is_dir() {
             fs::create_dir_all(user_data_dir.parent().unwrap())?;
@@ -109,6 +136,9 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
             fs::write(&port_file, ctx.cdp_port.to_string())
                 .with_context(|| format!("failed writing {}", port_file.display()))?;
             out!(ctx, "{} launched successfully.", browser.name);
+            if profile != "default" {
+                out!(ctx, "Profile: {profile}");
+            }
             let result = cmd_connect(ctx).await;
 
             // Reactivate the app that had focus before Chrome launched.
@@ -173,6 +203,7 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
         host: Some(ctx.cdp_host.clone()),
         browser_name: ctx.launch_browser_name.clone(),
         window_id,
+        profile: if ctx.current_profile != "default" { Some(ctx.current_profile.clone()) } else { None },
         ..SessionState::default()
     };
     ctx.save_session_state(&state)?;
@@ -181,6 +212,41 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
 
     out!(ctx, "Session: {session_id}");
     out!(ctx, "Command file: {}", ctx.command_file(&session_id).display());
+    Ok(())
+}
+
+pub(super) async fn cmd_kill(ctx: &mut AppContext) -> Result<()> {
+    let state = ctx.load_session_state()?;
+    let profile = state.profile.clone().unwrap_or_else(|| "default".to_string());
+
+    if profile == "default" {
+        bail!("Cannot kill default profile. Use 'close' to close your tabs.");
+    }
+
+    // Get the port for this profile's browser
+    let port_file = ctx.chrome_port_file_for(&profile);
+    if let Ok(port_str) = fs::read_to_string(&port_file) {
+        if let Ok(port) = port_str.trim().parse::<u16>() {
+            // Try to close the browser gracefully via CDP
+            let old_port = ctx.cdp_port;
+            ctx.cdp_port = port;
+            if let Ok(mut cdp) = open_cdp(ctx).await {
+                let _ = cdp.send("Browser.close", json!({})).await;
+            }
+            ctx.cdp_port = old_port;
+        }
+    }
+
+    // Clean up files
+    let _ = fs::remove_file(&port_file);
+    let profile_dir = ctx.chrome_profile_dir_for(&profile);
+    let _ = fs::remove_dir_all(&profile_dir);
+
+    // Clean up session state file
+    let session_id = ctx.require_session_id()?.to_string();
+    let _ = fs::remove_file(ctx.session_state_file(&session_id));
+
+    out!(ctx, "Killed profile '{profile}' and cleaned up.");
     Ok(())
 }
 
@@ -1227,5 +1293,119 @@ pub(super) async fn cmd_pdf(ctx: &mut AppContext, output_path: Option<&str>) -> 
     fs::write(&out, bytes).with_context(|| format!("failed writing {}", out.display()))?;
     out!(ctx, "PDF saved to {}", out.display());
     cdp.close().await;
+    Ok(())
+}
+
+pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+
+    let first = args.first().map(String::as_str).unwrap_or("");
+
+    if first == "off" {
+        runtime_evaluate_with_context(
+            &mut cdp,
+            "document.getElementById('webact-grid-overlay')?.remove()",
+            false,
+            false,
+            context_id,
+        ).await?;
+        out!(ctx, "Grid overlay removed.");
+        return Ok(());
+    }
+
+    // Parse grid spec: "8x6" (cols x rows), "50" (px cell size), or empty (10x10)
+    let (cols, rows) = if first.is_empty() {
+        (10, 10)
+    } else if first.contains('x') {
+        let parts: Vec<&str> = first.split('x').collect();
+        let c = parts[0].parse::<u32>().unwrap_or(10);
+        let r = parts.get(1).and_then(|s| s.parse::<u32>().ok()).unwrap_or(10);
+        (c, r)
+    } else if let Ok(px) = first.parse::<u32>() {
+        // px cell size — we'll compute cols/rows from viewport in JS
+        // Pass as negative to signal "pixel mode"
+        (px, 0) // special: rows=0 means px mode
+    } else {
+        (10, 10)
+    };
+
+    let script = if rows == 0 {
+        // Pixel mode: cols holds the cell size in px
+        format!(r#"(function() {{
+            document.getElementById('webact-grid-overlay')?.remove();
+            const px = {cols};
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const c = Math.ceil(vw / px), r = Math.ceil(vh / px);
+            const d = document.createElement('div');
+            d.id = 'webact-grid-overlay';
+            d.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;pointer-events:none;display:grid;grid-template-columns:repeat('+c+',1fr);grid-template-rows:repeat('+r+',1fr)';
+            for (let row = 0; row < r; row++) {{
+                for (let col = 0; col < c; col++) {{
+                    const cell = document.createElement('div');
+                    const cx = Math.round(col * px + px/2);
+                    const cy = Math.round(row * px + px/2);
+                    cell.style.cssText = 'border:1px solid rgba(255,0,0,0.3);display:flex;align-items:center;justify-content:center;font:9px monospace;color:rgba(255,0,0,0.7);background:rgba(255,255,255,0.05)';
+                    cell.textContent = cx+','+cy;
+                    d.appendChild(cell);
+                }}
+            }}
+            document.body.appendChild(d);
+            return {{ cols: c, rows: r, cellPx: px }};
+        }})()"#)
+    } else {
+        format!(r#"(function() {{
+            document.getElementById('webact-grid-overlay')?.remove();
+            const cols = {cols}, rows = {rows};
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const cw = vw / cols, ch = vh / rows;
+            const d = document.createElement('div');
+            d.id = 'webact-grid-overlay';
+            d.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;pointer-events:none;display:grid;grid-template-columns:repeat('+cols+',1fr);grid-template-rows:repeat('+rows+',1fr)';
+            for (let row = 0; row < rows; row++) {{
+                for (let col = 0; col < cols; col++) {{
+                    const cell = document.createElement('div');
+                    const cx = Math.round(col * cw + cw/2);
+                    const cy = Math.round(row * ch + ch/2);
+                    cell.style.cssText = 'border:1px solid rgba(255,0,0,0.3);display:flex;align-items:center;justify-content:center;font:9px monospace;color:rgba(255,0,0,0.7);background:rgba(255,255,255,0.05)';
+                    cell.textContent = cx+','+cy;
+                    d.appendChild(cell);
+                }}
+            }}
+            document.body.appendChild(d);
+            return {{ cols, rows, cellW: Math.round(cw), cellH: Math.round(ch) }};
+        }})()"#)
+    };
+
+    let result = runtime_evaluate_with_context(&mut cdp, &script, true, false, context_id).await?;
+
+    if let Some(val) = result.pointer("/result/value") {
+        let c = val.get("cols").and_then(Value::as_u64).unwrap_or(0);
+        let r = val.get("rows").and_then(Value::as_u64).unwrap_or(0);
+        out!(ctx, "Grid overlay: {c}x{r}. Each cell shows its center coordinate. Use 'grid off' to remove.");
+    } else {
+        out!(ctx, "Grid overlay applied.");
+    }
+
+    Ok(())
+}
+
+pub(super) async fn cmd_setup(ctx: &mut AppContext) -> Result<()> {
+    let output = Command::new("sh")
+        .args(["-c", "curl -fsSL https://webact.space/install | SKIP_DOWNLOAD=1 sh"])
+        .output()
+        .context("Failed to run setup")?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !stdout.is_empty() {
+        out!(ctx, "{}", stdout.trim_end());
+    }
+    if !stderr.is_empty() && !output.status.success() {
+        out!(ctx, "{}", stderr.trim_end());
+    }
+
     Ok(())
 }

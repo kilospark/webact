@@ -107,35 +107,58 @@ pub(crate) async fn cmd_scroll(ctx: &mut AppContext, args: &[String]) -> Result<
     prepare_cdp(ctx, &mut cdp).await?;
     let context_id = get_frame_context_id(ctx, &mut cdp).await?;
     if first_is_direction {
-        if lower == "top" {
-            runtime_evaluate_with_context(
-                &mut cdp,
-                "window.scrollTo(0, 0)",
-                false,
-                false,
-                context_id,
-            )
-            .await?;
-        } else if lower == "bottom" {
-            runtime_evaluate_with_context(
-                &mut cdp,
-                "window.scrollTo(0, document.body.scrollHeight)",
-                false,
-                false,
-                context_id,
-            )
-            .await?;
-        } else {
-            let pixels = args
-                .get(1)
-                .and_then(|v| v.parse::<i64>().ok())
-                .unwrap_or(400);
+        if lower == "up" || lower == "down" {
+            let pixels = args.get(1).and_then(|v| v.parse::<i64>().ok()).unwrap_or(400);
             let delta = if lower == "up" { -pixels } else { pixels };
+
+            // Capture scroll position before
+            let before_js = "window.scrollY";
+            let before = runtime_evaluate_with_context(&mut cdp, before_js, true, false, context_id).await?;
+            let before_y = before.pointer("/result/value").and_then(Value::as_f64).unwrap_or(0.0);
+
+            // Do the mouse wheel scroll
             cdp.send(
                 "Input.dispatchMouseEvent",
                 json!({ "type": "mouseWheel", "x": 200, "y": 200, "deltaX": 0, "deltaY": delta }),
             )
             .await?;
+
+            // Brief wait for scroll to take effect
+            sleep(Duration::from_millis(100)).await;
+
+            // Check if it actually scrolled
+            let after = runtime_evaluate_with_context(&mut cdp, before_js, true, false, context_id).await?;
+            let after_y = after.pointer("/result/value").and_then(Value::as_f64).unwrap_or(0.0);
+
+            if (after_y - before_y).abs() < 1.0 {
+                // Didn't scroll — fall back to keyboard
+                let key = if lower == "up" { "PageUp" } else { "PageDown" };
+                cdp.close().await;
+                cmd_press(ctx, key).await?;
+                out!(ctx, "Scrolled {lower} (keyboard fallback)");
+                return Ok(());
+            }
+        } else {
+            // top or bottom
+            let js_action = if lower == "top" {
+                "window.scrollTo(0,0)"
+            } else {
+                "window.scrollTo(0,document.body.scrollHeight)"
+            };
+            let fallback_key = if lower == "top" { "Home" } else { "End" };
+
+            let check_script = format!(
+                r#"(function() {{ const before = window.scrollY; {js_action}; return {{ scrolled: Math.abs(window.scrollY - before) > 0 }}; }})()"#
+            );
+            let result = runtime_evaluate_with_context(&mut cdp, &check_script, true, false, context_id).await?;
+            let scrolled = result.pointer("/result/value/scrolled").and_then(Value::as_bool).unwrap_or(true);
+
+            if !scrolled {
+                cdp.close().await;
+                cmd_press(ctx, fallback_key).await?;
+                out!(ctx, "Scrolled {lower} (keyboard fallback)");
+                return Ok(());
+            }
         }
     } else if second_is_direction {
         let selector = first;

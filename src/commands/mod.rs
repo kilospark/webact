@@ -1,10 +1,12 @@
 use crate::*;
 
+mod batch;
 mod core;
 mod data;
 mod interaction;
 mod session;
 
+use batch::*;
 use core::*;
 use data::*;
 use interaction::*;
@@ -224,6 +226,8 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             cmd_new_tab(ctx, url.as_deref()).await
         }
         "close" => cmd_close(ctx).await,
+        "kill" => cmd_kill(ctx).await,
+        "batch" => Box::pin(cmd_batch(ctx, args)).await,
         "media" => cmd_media(ctx, args).await,
         "animations" => cmd_animations(ctx, args.first().map(String::as_str)).await,
         "security" => cmd_security(ctx, args).await,
@@ -231,6 +235,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "sw" => cmd_sw(ctx, args).await,
         "activate" => cmd_activate(ctx).await,
         "minimize" => cmd_minimize(ctx).await,
+        "grid" => cmd_grid(ctx, args).await,
         "humanclick" => cmd_human_click_dispatch(ctx, args).await,
         "humantype" => {
             if args.len() < 2 {
@@ -305,6 +310,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             }
             Ok(())
         }
+        "setup" => cmd_setup(ctx).await,
         "config" => {
             let action = args.first().map(String::as_str).unwrap_or("get");
             match action {
