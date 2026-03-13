@@ -311,6 +311,7 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
             Ok(())
         }
         "setup" => cmd_setup(ctx).await,
+        "uninstall" => cmd_uninstall(ctx).await,
         "config" => {
             let action = args.first().map(String::as_str).unwrap_or("get");
             match action {

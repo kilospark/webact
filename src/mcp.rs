@@ -305,7 +305,7 @@ async fn handle_tool_call(
     arguments: &Value,
 ) -> Result<Vec<Value>> {
     // Commands that don't need a browser session
-    let no_browser = matches!(tool_name, "launch" | "connect" | "feedback" | "config" | "kill" | "setup");
+    let no_browser = matches!(tool_name, "launch" | "connect" | "feedback" | "config" | "kill" | "setup" | "uninstall");
 
     // Auto-discover or create an isolated session for this MCP process.
     // Each MCP server gets its own session+tab so multiple agents don't collide.

@@ -1391,21 +1391,12 @@ pub(super) async fn cmd_grid(ctx: &mut AppContext, args: &[String]) -> Result<()
     Ok(())
 }
 
-pub(super) async fn cmd_setup(ctx: &mut AppContext) -> Result<()> {
-    let output = Command::new("sh")
-        .args(["-c", "curl -fsSL https://webact.space/install | SKIP_DOWNLOAD=1 sh"])
-        .output()
-        .context("Failed to run setup")?;
+pub(super) async fn cmd_setup(_ctx: &mut AppContext) -> Result<()> {
+    crate::mcp_clients::configure_clients();
+    Ok(())
+}
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !stdout.is_empty() {
-        out!(ctx, "{}", stdout.trim_end());
-    }
-    if !stderr.is_empty() && !output.status.success() {
-        out!(ctx, "{}", stderr.trim_end());
-    }
-
+pub(super) async fn cmd_uninstall(_ctx: &mut AppContext) -> Result<()> {
+    crate::mcp_clients::remove_clients();
     Ok(())
 }
