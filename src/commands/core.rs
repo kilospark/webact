@@ -46,7 +46,8 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
                 }
                 ctx.launch_browser_name = detect_browser_from_port(ctx).await;
                 out!(ctx, "Browser already running.");
-                return cmd_connect(ctx).await;
+                cmd_connect(ctx).await?;
+                return Ok(());
             }
         }
         let _ = fs::remove_file(&port_file);
@@ -118,26 +119,52 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         .spawn()
         .with_context(|| format!("failed launching browser at {}", browser.path))?;
 
+    // Wait for Chrome to start and expose at least one tab
+    let mut ready = false;
     for _ in 0..30 {
         sleep(Duration::from_millis(500)).await;
-        if get_debug_tabs(ctx).await.is_ok() {
-            fs::write(&port_file, ctx.cdp_port.to_string())
-                .with_context(|| format!("failed writing {}", port_file.display()))?;
-            out!(ctx, "{} launched successfully.", browser.name);
-            if profile != "default" {
-                out!(ctx, "Profile: {profile}");
+        if let Ok(tabs) = get_debug_tabs(ctx).await {
+            if !tabs.is_empty() {
+                ready = true;
+                break;
             }
-            return cmd_connect(ctx).await;
+        }
+    }
+    if !ready {
+        bail!(
+            "{} launched but debug port not responding after 15s.",
+            browser.name
+        );
+    }
+
+    // Snapshot Chrome's initial default tabs before creating the session window
+    let initial_tabs: Vec<String> = get_debug_tabs(ctx)
+        .await
+        .map(|tabs| tabs.iter().map(|t| t.id.clone()).collect())
+        .unwrap_or_default();
+
+    fs::write(&port_file, ctx.cdp_port.to_string())
+        .with_context(|| format!("failed writing {}", port_file.display()))?;
+    out!(ctx, "{} launched successfully.", browser.name);
+    if profile != "default" {
+        out!(ctx, "Profile: {profile}");
+    }
+
+    let has_own_window = cmd_connect(ctx).await?;
+
+    // Close Chrome's default initial window — the agent uses its own window.
+    // Only safe when cmd_connect created a dedicated window (not a tab fallback).
+    if has_own_window {
+        for tab_id in &initial_tabs {
+            let _ = http_put_text(ctx, &format!("/json/close/{tab_id}")).await;
         }
     }
 
-    bail!(
-        "{} launched but debug port not responding after 15s.",
-        browser.name
-    )
+    Ok(())
 }
 
-pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
+/// Returns `true` if the session got its own dedicated window.
+pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<bool> {
     let session_id = new_session_id();
     ctx.set_current_session(session_id.clone());
 
@@ -199,7 +226,7 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<()> {
 
     out!(ctx, "Session: {session_id}");
     out!(ctx, "Command file: {}", ctx.command_file(&session_id).display());
-    Ok(())
+    Ok(has_own_window)
 }
 
 pub(super) async fn cmd_kill(ctx: &mut AppContext) -> Result<()> {
