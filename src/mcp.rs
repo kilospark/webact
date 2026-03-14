@@ -77,31 +77,24 @@ pub async fn run_mcp_server() -> Result<()> {
                             .pointer("/params/protocolVersion")
                             .and_then(Value::as_str)
                             .unwrap_or("2024-11-05");
-                        let version_notice = if api_client::should_check_for_update() {
-                            match api_client::check_for_update().await {
-                                Ok(Some(latest)) => {
-                                    // Auto-update in background if enabled
-                                    if cfg.auto_update {
-                                        let ver = latest.clone();
-                                        tokio::spawn(async move {
-                                            if let Err(e) = api_client::self_update(&ver).await {
-                                                eprintln!("Auto-update failed: {e}");
-                                            } else {
-                                                eprintln!("Auto-updated to v{ver}. Restart MCP client to use.");
-                                            }
-                                        });
-                                        format!("**[Updating webact to v{latest} in background — you have v{current_version}. Restart MCP client after update completes.]**\n\n")
-                                    } else {
-                                        format!("**[Update available: webact v{latest} — you have v{current_version}. Run `webact update` or visit https://github.com/kilospark/webact/releases/latest]**\n\n")
+                        // Background auto-update check+download (throttled to once per 24h).
+                        // Entire flow runs in a background task to avoid blocking initialize.
+                        if api_client::should_check_for_update() && cfg.auto_update {
+                            tokio::spawn(async move {
+                                match api_client::check_for_update().await {
+                                    Ok(Some(latest)) => {
+                                        if let Err(e) = api_client::self_update(&latest).await {
+                                            eprintln!("Auto-update failed: {e}");
+                                        } else {
+                                            eprintln!("Auto-updated to v{latest}. Restart MCP client to use.");
+                                        }
                                     }
+                                    Ok(None) => {}
+                                    Err(e) => eprintln!("Update check failed: {e}"),
                                 }
-                                Ok(None) => String::new(),
-                                Err(_) => String::new(),
-                            }
-                        } else {
-                            String::new()
-                        };
-                        let instructions = format!("{version_notice}{MCP_INSTRUCTIONS}");
+                            });
+                        }
+                        let instructions = MCP_INSTRUCTIONS;
 
                         let response = json!({
                             "jsonrpc": "2.0",
