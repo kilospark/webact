@@ -11,6 +11,21 @@ async fn main() {
 async fn run() -> Result<()> {
     let mut args: Vec<String> = env::args().skip(1).collect();
 
+    // Parse global --tab <id> flag before extracting the command
+    let override_tab_id = if let Some(pos) = args.iter().position(|a| a == "--tab") {
+        if pos + 1 < args.len() {
+            let tab_id = args[pos + 1].clone();
+            args.remove(pos); // remove --tab
+            args.remove(pos); // remove the id (now at same index)
+            Some(tab_id)
+        } else {
+            eprintln!("Error: --tab requires a tab ID argument");
+            std::process::exit(1);
+        }
+    } else {
+        None
+    };
+
     if args.is_empty() {
         print_help();
         return Ok(());
@@ -36,6 +51,15 @@ async fn run() -> Result<()> {
         webact::mcp_clients::remove_clients();
         return Ok(());
     }
+    if command == "update" {
+        let mut ctx = AppContext::new()?;
+        commands::dispatch(&mut ctx, "update", &args).await?;
+        let buffered = ctx.drain_output();
+        if !buffered.is_empty() {
+            print!("{buffered}");
+        }
+        return Ok(());
+    }
 
     let mut ctx = AppContext::new()?;
     if let Some(port) = env::var("CDP_PORT")
@@ -43,6 +67,10 @@ async fn run() -> Result<()> {
         .and_then(|v| v.parse::<u16>().ok())
     {
         ctx.cdp_port = port;
+    }
+
+    if let Some(ref tab_id) = override_tab_id {
+        ctx.override_tab_id = Some(tab_id.clone());
     }
 
     if command == "run" {
@@ -67,7 +95,24 @@ async fn run() -> Result<()> {
         return Ok(());
     }
 
-    if command != "launch" && command != "connect" {
+    if ctx.override_tab_id.is_some() {
+        // --tab mode: discover Chrome port without requiring a session
+        if ctx.auto_discover_last_session().is_err() {
+            // No session — try reading port from default profile
+            let port_file = ctx.chrome_port_file_for("default");
+            if let Ok(port_str) = fs::read_to_string(&port_file) {
+                if let Ok(port) = port_str.trim().parse::<u16>() {
+                    ctx.cdp_port = port;
+                    // Create a temporary session ID so state operations don't fail
+                    ctx.set_current_session(format!("tab-{}", &ctx.override_tab_id.as_ref().unwrap()[..8.min(ctx.override_tab_id.as_ref().unwrap().len())]));
+                } else {
+                    bail!("No running browser found. Run: webact launch");
+                }
+            } else {
+                bail!("No running browser found. Run: webact launch");
+            }
+        }
+    } else if !matches!(command.as_str(), "launch" | "connect" | "config" | "update") {
         ctx.auto_discover_last_session()
             .context("No active session. Run: webact launch")?;
     }

@@ -200,6 +200,10 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
         "eval" => cmd_eval(ctx, &args.join(" ")).await,
         "observe" => cmd_observe(ctx).await,
         "find" => cmd_find(ctx, &args.join(" ")).await,
+        "resolve" => {
+            let selector = resolve_selector(ctx, &args.join(" "))?;
+            cmd_resolve(ctx, &selector).await
+        }
         "cookies" => cmd_cookies(ctx, args).await,
         "console" => cmd_console(ctx, args.first().map(String::as_str)).await,
         "network" => cmd_network(ctx, args).await,
@@ -341,7 +345,8 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                             }
                             config.browser = Some(raw_value.to_string());
                         }
-                        _ => bail!("Unknown config key: {key}. Valid keys: telemetry, feedback, browser"),
+                        "auto_update" => config.auto_update = raw_value == "true",
+                        _ => bail!("Unknown config key: {key}. Valid keys: telemetry, feedback, browser, auto_update"),
                     }
                     crate::config::save_config(&config)?;
                     out!(ctx, "Set {key} = {raw_value}");
@@ -349,6 +354,22 @@ pub async fn dispatch(ctx: &mut AppContext, command: &str, args: &[String]) -> R
                 }
                 _ => bail!("Usage: config get | config set <key> <true|false>"),
             }
+        }
+        "update" => {
+            let current = env!("CARGO_PKG_VERSION");
+            out!(ctx, "Current version: {current}");
+            out!(ctx, "Checking for updates...");
+            match crate::api_client::check_for_update().await {
+                Ok(Some(latest)) => {
+                    out!(ctx, "Update available: v{latest}");
+                    out!(ctx, "Downloading...");
+                    crate::api_client::self_update(&latest).await?;
+                    out!(ctx, "Updated to v{latest}. Restart webact to use the new version.");
+                }
+                Ok(None) => out!(ctx, "Already up to date (v{current})."),
+                Err(e) => bail!("Failed to check for updates: {e}"),
+            }
+            Ok(())
         }
         _ => bail!("Unknown command: {command}"),
     }

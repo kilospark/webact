@@ -143,6 +143,22 @@
     }
   },
   {
+    "name": "resolve",
+    "description": "Get the navigation target URL of a link or form element without clicking it. Returns href, action, formAction, src, onclick, and target attributes. Accepts CSS selector or ref number.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or ref number of the element"
+        }
+      },
+      "required": [
+        "selector"
+      ]
+    }
+  },
+  {
     "name": "screenshot",
     "description": "Capture a screenshot. Expensive (~500+ vision tokens). Prefer dom/axtree/read/text for most tasks. Use ref or selector to crop to a specific element. Defaults to 800px wide; use scale to adjust (e.g. scale:0.5 for half size). Use output to save to a file path without returning base64.",
     "inputSchema": {

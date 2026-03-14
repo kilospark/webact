@@ -77,23 +77,29 @@ pub async fn run_mcp_server() -> Result<()> {
                             .pointer("/params/protocolVersion")
                             .and_then(Value::as_str)
                             .unwrap_or("2024-11-05");
-                        let version_notice = match api_client::check_version(current_version).await {
-                            Ok(info) => {
-                                let is_latest = info
-                                    .get("current_is_latest")
-                                    .and_then(Value::as_bool)
-                                    .unwrap_or(true);
-                                if !is_latest {
-                                    let latest = info
-                                        .get("latest")
-                                        .and_then(Value::as_str)
-                                        .unwrap_or("unknown");
-                                    format!("**[Update available: webact v{latest} — you have v{current_version}. Visit https://github.com/kilospark/webact/releases/latest to update.]**\n\n")
-                                } else {
-                                    String::new()
+                        let version_notice = if api_client::should_check_for_update() {
+                            match api_client::check_for_update().await {
+                                Ok(Some(latest)) => {
+                                    // Auto-update in background if enabled
+                                    if cfg.auto_update {
+                                        let ver = latest.clone();
+                                        tokio::spawn(async move {
+                                            if let Err(e) = api_client::self_update(&ver).await {
+                                                eprintln!("Auto-update failed: {e}");
+                                            } else {
+                                                eprintln!("Auto-updated to v{ver}. Restart MCP client to use.");
+                                            }
+                                        });
+                                        format!("**[Updating webact to v{latest} in background — you have v{current_version}. Restart MCP client after update completes.]**\n\n")
+                                    } else {
+                                        format!("**[Update available: webact v{latest} — you have v{current_version}. Run `webact update` or visit https://github.com/kilospark/webact/releases/latest]**\n\n")
+                                    }
                                 }
+                                Ok(None) => String::new(),
+                                Err(_) => String::new(),
                             }
-                            Err(_) => String::new(),
+                        } else {
+                            String::new()
                         };
                         let instructions = format!("{version_notice}{MCP_INSTRUCTIONS}");
 
@@ -794,6 +800,10 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         // Find: query
         "find" => {
             vec_from_opt_str(arguments, "query")
+        }
+        // Resolve: selector
+        "resolve" => {
+            vec_from_opt_str(arguments, "selector")
         }
         // Pdf: optional path
         "pdf" => {

@@ -53,6 +53,8 @@ pub struct AppContext {
     pub session_start: std::time::Instant,
     pub mcp_mode: bool,
     pub current_profile: String,
+    /// Override active tab — connects directly to this tab ID, bypassing session ownership.
+    pub override_tab_id: Option<String>,
 }
 
 impl AppContext {
@@ -73,6 +75,7 @@ impl AppContext {
             session_start: std::time::Instant::now(),
             mcp_mode: false,
             current_profile: "default".to_string(),
+            override_tab_id: None,
         };
         // Ensure persistent data directories exist
         let _ = fs::create_dir_all(ctx.data_dir());
@@ -365,6 +368,20 @@ pub async fn open_cdp(ctx: &mut AppContext) -> Result<CdpClient> {
 }
 
 pub async fn connect_to_tab(ctx: &mut AppContext) -> Result<DebugTab> {
+    // --tab override: connect directly to the specified tab, bypassing session
+    if let Some(ref target_id) = ctx.override_tab_id {
+        let tabs = get_debug_tabs(ctx).await?;
+        let tab = tabs
+            .iter()
+            .find(|t| t.id == *target_id)
+            .cloned()
+            .ok_or_else(|| anyhow!("Tab not found: {target_id}"))?;
+        if tab.web_socket_debugger_url.is_none() {
+            bail!("Tab {target_id} has no webSocketDebuggerUrl");
+        }
+        return Ok(tab);
+    }
+
     let mut state = ctx.load_session_state()?;
     let tabs = get_debug_tabs(ctx).await?;
 
@@ -408,7 +425,11 @@ pub async fn get_debug_tabs(ctx: &AppContext) -> Result<Vec<DebugTab>> {
 
 pub async fn create_new_tab(ctx: &AppContext, url: Option<&str>) -> Result<DebugTab> {
     let suffix = match url {
-        Some(raw) if !raw.is_empty() => format!("/json/new?{raw}"),
+        Some(raw) if !raw.is_empty() => {
+            // URL-encode to prevent Chrome from misinterpreting URL query params as HTTP params
+            let encoded = urlencoding::encode(raw);
+            format!("/json/new?{encoded}")
+        }
         _ => "/json/new".to_string(),
     };
     let body = http_put_text(ctx, &suffix).await?;
@@ -1142,7 +1163,7 @@ pub fn check_tab_lock(ctx: &AppContext, tab_id: &str) -> Result<Option<TabLock>>
 
 pub fn print_help() {
     println!(
-        "webact v{} - side-by-side Rust port of webact\n\nUsage: webact <command> [args]\n\nCommands:\n  launch              Launch Chrome and start a session\n  connect             Attach to already-running Chrome (no launch)\n  run <sid>           Run command(s) from /tmp/webact-command-<sid>.json\n  navigate <url>      Navigate to URL\n  back                Go back in history\n  forward             Go forward in history\n  reload              Reload the current page\n  dom [selector]      Get compact DOM (--tokens=N to limit output)\n  axtree [selector]   Get accessibility tree\n  axtree -i           Interactive elements with ref numbers\n  axtree -i --diff    Show only changes since last snapshot\n  observe             Show interactive elements as ready-to-use commands\n  find <query>        Find element by description\n  screenshot [--full] Capture screenshot (--full for entire page)\n  pdf [path]          Save page as PDF\n  click <sel|x,y|--text> Click element, coordinates, or text match\n  doubleclick <sel|x,y|--text> Double-click\n  rightclick <sel|x,y|--text> Right-click\n  hover <sel|x,y|--text> Hover\n  focus <selector>    Focus an element without clicking\n  clear <selector>    Clear an input or contenteditable\n  type <sel> <text>   Type text into element\n  keyboard <text>     Type at current caret position\n  paste <text>        Paste text via ClipboardEvent\n  select <sel> <val>  Select option(s) from a <select>\n  upload <sel> <file> Upload file(s) to a file input\n  drag <from> <to>    Drag from one element to another\n  dialog <accept|dismiss> [text] Handle next dialog\n  waitfor <sel> [ms]  Wait for element to appear\n  waitfornav [ms]     Wait for navigation/readystate\n  press <key>         Press key or combo (Enter, Ctrl+A, Meta+C)\n  scroll <...>        Scroll page or element\n  eval <js>           Evaluate JavaScript\n  cookies ...         Manage cookies\n  console ...         Show/listen for console logs\n  network ...         Capture/show network requests\n  block ...           Configure request blocking\n  viewport ...        Set viewport preset or dimensions\n  frames              List frames/iframes\n  frame <id|sel>      Switch frame (frame main to reset)\n  download ...        Configure/list downloads\n  tabs                List tabs owned by this session\n  tab <id>            Switch to a session-owned tab\n  newtab [url]        Open a new tab in this session\n  close               Close current tab\n  activate            Bring browser window to front (macOS)\n  minimize            Minimize browser window (macOS)\n  humanclick <...>    Human-like click movement/timing\n  humantype <...>     Human-like typing\n  media <dark|light|...> Emulate media features (dark mode, print, etc)\n  animations <pause|resume> Pause/resume page animations\n  security <ignore-certs|strict> Control certificate validation\n  storage <get|set|remove|clear> Manage localStorage/sessionStorage\n  sw <list|unregister|update> Manage service workers\n  zoom <in|out|N>     Zoom page (25-200%%, preserves layout)\n  lock [seconds]      Lock active tab for exclusive access\n  unlock              Release tab lock\n  kill                Kill custom profile browser session\n  batch '<json>'      Execute multiple actions sequentially\n  grid [spec]         Overlay coordinate grid (8x6, 50, off)\n  setup               Register MCP with detected clients\n  mcp                 Run as MCP server (stdio JSON-RPC)",
+        "webact v{} - side-by-side Rust port of webact\n\nUsage: webact <command> [args]\n\nCommands:\n  launch              Launch Chrome and start a session\n  connect             Attach to already-running Chrome (no launch)\n  run <sid>           Run command(s) from /tmp/webact-command-<sid>.json\n  navigate <url>      Navigate to URL\n  back                Go back in history\n  forward             Go forward in history\n  reload              Reload the current page\n  dom [selector]      Get compact DOM (--tokens=N to limit output)\n  axtree [selector]   Get accessibility tree\n  axtree -i           Interactive elements with ref numbers\n  axtree -i --diff    Show only changes since last snapshot\n  observe             Show interactive elements as ready-to-use commands\n  find <query>        Find element by description\n  screenshot [--full] Capture screenshot (--full for entire page)\n  pdf [path]          Save page as PDF\n  click <sel|x,y|--text> Click element, coordinates, or text match\n  doubleclick <sel|x,y|--text> Double-click\n  rightclick <sel|x,y|--text> Right-click\n  hover <sel|x,y|--text> Hover\n  focus <selector>    Focus an element without clicking\n  clear <selector>    Clear an input or contenteditable\n  type <sel> <text>   Type text into element\n  keyboard <text>     Type at current caret position\n  paste <text>        Paste text via ClipboardEvent\n  select <sel> <val>  Select option(s) from a <select>\n  upload <sel> <file> Upload file(s) to a file input\n  drag <from> <to>    Drag from one element to another\n  dialog <accept|dismiss> [text] Handle next dialog\n  waitfor <sel> [ms]  Wait for element to appear\n  waitfornav [ms]     Wait for navigation/readystate\n  press <key>         Press key or combo (Enter, Ctrl+A, Meta+C)\n  scroll <...>        Scroll page or element\n  eval <js>           Evaluate JavaScript\n  cookies ...         Manage cookies\n  console ...         Show/listen for console logs\n  network ...         Capture/show network requests\n  block ...           Configure request blocking\n  viewport ...        Set viewport preset or dimensions\n  frames              List frames/iframes\n  frame <id|sel>      Switch frame (frame main to reset)\n  download ...        Configure/list downloads\n  tabs                List tabs owned by this session\n  tab <id>            Switch to a session-owned tab\n  newtab [url]        Open a new tab in this session\n  close               Close current tab\n  activate            Bring browser window to front (macOS)\n  minimize            Minimize browser window (macOS)\n  humanclick <...>    Human-like click movement/timing\n  humantype <...>     Human-like typing\n  media <dark|light|...> Emulate media features (dark mode, print, etc)\n  animations <pause|resume> Pause/resume page animations\n  security <ignore-certs|strict> Control certificate validation\n  storage <get|set|remove|clear> Manage localStorage/sessionStorage\n  sw <list|unregister|update> Manage service workers\n  zoom <in|out|N>     Zoom page (25-200%%, preserves layout)\n  lock [seconds]      Lock active tab for exclusive access\n  unlock              Release tab lock\n  kill                Kill custom profile browser session\n  batch '<json>'      Execute multiple actions sequentially\n  grid [spec]         Overlay coordinate grid (8x6, 50, off)\n  update              Check for updates and self-update\n  config get|set      View or change settings\n  install             Register MCP with detected clients\n  uninstall           Remove MCP client registrations\n  mcp                 Run as MCP server (stdio JSON-RPC)\n\nGlobal flags:\n  --tab <id>          Target a specific tab (bypasses session)",
         env!("CARGO_PKG_VERSION")
     );
 }

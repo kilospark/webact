@@ -1,6 +1,6 @@
 [package]
 name = "webact"
-version = "0.1.44"
+version = "0.1.45"
 edition = "2024"
 
 [[bin]]
@@ -19,3 +19,6 @@ serde_json = "1.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 uuid = { version = "1", features = ["v4"] }
+flate2 = "1.1"
+tar = "0.4"
+urlencoding = "2"

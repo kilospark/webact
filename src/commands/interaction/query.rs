@@ -178,3 +178,68 @@ pub(crate) async fn cmd_find(ctx: &mut AppContext, query: &str) -> Result<()> {
     cdp.close().await;
     Ok(())
 }
+
+pub(crate) async fn cmd_resolve(ctx: &mut AppContext, selector: &str) -> Result<()> {
+    let mut cdp = open_cdp(ctx).await?;
+    prepare_cdp(ctx, &mut cdp).await?;
+    let context_id = get_frame_context_id(ctx, &mut cdp).await?;
+
+    let js = format!(
+        r#"(() => {{
+            const el = document.querySelector({sel});
+            if (!el) return JSON.stringify({{error: "Element not found"}});
+            const result = {{}};
+            if (el.href) result.href = el.href;
+            if (el.action) result.action = el.action;
+            if (el.formAction) result.formAction = el.formAction;
+            if (el.src) result.src = el.src;
+            const onclick = el.getAttribute('onclick');
+            if (onclick) result.onclick = onclick;
+            const target = el.getAttribute('target');
+            if (target) result.target = target;
+            result.tagName = el.tagName.toLowerCase();
+            result.text = (el.textContent || '').trim().slice(0, 200);
+            return JSON.stringify(result);
+        }})()"#,
+        sel = serde_json::to_string(selector)?
+    );
+    let result = runtime_evaluate_with_context(&mut cdp, &js, true, false, context_id).await?;
+    let value = result
+        .pointer("/result/value")
+        .and_then(Value::as_str)
+        .unwrap_or("{}");
+
+    let parsed: Value = serde_json::from_str(value).unwrap_or(json!({}));
+    if let Some(err) = parsed.get("error").and_then(Value::as_str) {
+        bail!("{err}: {selector}");
+    }
+
+    if let Some(href) = parsed.get("href").and_then(Value::as_str) {
+        out!(ctx, "href: {href}");
+    }
+    if let Some(action) = parsed.get("action").and_then(Value::as_str) {
+        out!(ctx, "action: {action}");
+    }
+    if let Some(form_action) = parsed.get("formAction").and_then(Value::as_str) {
+        out!(ctx, "formAction: {form_action}");
+    }
+    if let Some(src) = parsed.get("src").and_then(Value::as_str) {
+        out!(ctx, "src: {src}");
+    }
+    if let Some(onclick) = parsed.get("onclick").and_then(Value::as_str) {
+        out!(ctx, "onclick: {onclick}");
+    }
+    if let Some(target) = parsed.get("target").and_then(Value::as_str) {
+        out!(ctx, "target: {target}");
+    }
+    let tag = parsed.get("tagName").and_then(Value::as_str).unwrap_or("?");
+    let text = parsed.get("text").and_then(Value::as_str).unwrap_or("");
+    if !text.is_empty() {
+        out!(ctx, "element: <{tag}> \"{text}\"");
+    } else {
+        out!(ctx, "element: <{tag}>");
+    }
+
+    cdp.close().await;
+    Ok(())
+}
