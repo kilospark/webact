@@ -57,8 +57,6 @@ pub struct AppContext {
     pub override_tab_id: Option<String>,
     /// Browser launched in headless mode — skip window management operations.
     pub headless: bool,
-    /// Browser launched in background (e.g. macOS `open -g`) — skip minimize.
-    pub launched_background: bool,
 }
 
 impl AppContext {
@@ -81,7 +79,6 @@ impl AppContext {
             current_profile: "default".to_string(),
             override_tab_id: None,
             headless: false,
-            launched_background: false,
         };
         // Ensure persistent data directories exist
         let _ = fs::create_dir_all(ctx.data_dir());

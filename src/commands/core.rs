@@ -147,10 +147,6 @@ pub(super) async fn cmd_launch(ctx: &mut AppContext, args: &[String]) -> Result<
         .spawn()
         .with_context(|| format!("failed launching browser at {}", browser.path))?;
 
-    if use_open_gn {
-        ctx.launched_background = true;
-    }
-
     // Wait for Chrome to start and expose at least one tab
     let mut ready = false;
     for _ in 0..30 {
@@ -218,19 +214,6 @@ pub(super) async fn cmd_connect(ctx: &mut AppContext) -> Result<bool> {
     } else {
         (create_new_tab(ctx, None).await?, false)
     };
-
-    // On macOS with `open -g`, the browser launches without activating — no minimize needed.
-    // On Linux or when launched directly (e.g. CHROME_PATH, non-.app binary),
-    // minimize the new window to avoid stealing focus.
-    let needs_minimize = has_own_window && !ctx.headless && !ctx.launched_background;
-
-    if needs_minimize {
-        if let Some(ws_url) = &new_tab.web_socket_debugger_url {
-            if let Ok(wid) = get_window_id_for_target(ctx, ws_url).await {
-                let _ = minimize_window_by_id(ctx, ws_url, wid).await;
-            }
-        }
-    }
 
     // Only capture window_id when this session owns its own window.
     // If we fell back to create_new_tab, the window is shared and we must not
