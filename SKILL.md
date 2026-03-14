@@ -228,7 +228,7 @@ webact launch
 #         Command file: /tmp/webact-command-a1b2c3d4.json  (path varies by OS)
 ```
 
-If Chrome is not running, `launch` starts a new instance in the background (macOS) or minimized. Use `--headless` for invisible operation. All subsequent commands auto-discover the session. Use `activate` to bring the browser window to the front when needed.
+If Chrome is not running, `launch` starts a new instance in the background (macOS). Use `--headless` for invisible operation. All subsequent commands auto-discover the session. Use `activate` to bring the browser window to the front when needed.
 
 Use `--tab <id>` to target a specific tab from scripts without creating a session:
 ```bash

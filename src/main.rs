@@ -116,6 +116,10 @@ async fn run() -> Result<()> {
                 .context("No running browser found. Run: webact launch")?
         };
         ctx.cdp_port = port;
+        // Validate Chrome is actually reachable on this port
+        if get_debug_tabs(&ctx).await.is_err() {
+            bail!("No running browser found. Run: webact launch");
+        }
         // Isolated session ID — never reuses an existing session's state file
         let tab_id = ctx.override_tab_id.as_ref().unwrap();
         let short = &tab_id[..tab_id.len().min(8)];
