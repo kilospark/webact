@@ -10,6 +10,7 @@ const TOOLS_JSON: &str = include_str!("../tools.json");
 const MCP_INSTRUCTIONS: &str = include_str!("../MCP_INSTRUCTIONS.md");
 const TELEMETRY_INTERVAL: Duration = Duration::from_secs(300); // 5 minutes
 const FEEDBACK_DELAY: Duration = Duration::from_secs(1800); // 30 minutes
+const DEFAULT_TOOL_TIMEOUT_MS: u64 = 90_000;
 
 pub async fn run_mcp_server() -> Result<()> {
     let async_stdin = BufReader::new(tokio::io::stdin());
@@ -118,10 +119,10 @@ pub async fn run_mcp_server() -> Result<()> {
                         None
                     }
                     "tools/list" => {
-                        let tools: Value = match serde_json::from_str(TOOLS_JSON) {
+                        let tools = match build_mcp_tools() {
                             Ok(v) => v,
                             Err(e) => {
-                                eprintln!("failed parsing embedded tools.json: {e}");
+                                eprintln!("failed building MCP tools list: {e}");
                                 break;
                             }
                         };
@@ -153,7 +154,28 @@ pub async fn run_mcp_server() -> Result<()> {
                         *ctx.tool_counts.entry(tool_name.clone()).or_insert(0) += 1;
                         session_tool_count += 1;
 
-                        let result = handle_tool_call(&mut ctx, &tool_name, &arguments).await;
+                        let result = match tool_call_timeout_ms(&arguments) {
+                            Ok(timeout_ms) => match timeout_for_tool_call(timeout_ms) {
+                                Some(limit) => match timeout(
+                                    limit,
+                                    handle_tool_call(&mut ctx, &tool_name, &arguments),
+                                )
+                                .await
+                                {
+                                    Ok(result) => result,
+                                    Err(_) => {
+                                        ctx.output.clear();
+                                        Err(anyhow!(
+                                            "MCP tool `{}` timed out after {}ms. Retry with a larger `timeout_ms`, or set `timeout_ms: 0` to disable the per-call timeout.",
+                                            tool_name,
+                                            timeout_ms
+                                        ))
+                                    }
+                                },
+                                None => handle_tool_call(&mut ctx, &tool_name, &arguments).await,
+                            },
+                            Err(e) => Err(e),
+                        };
 
                         // Mark feedback received only after successful submission
                         if tool_name == "feedback" && result.is_ok() {
@@ -286,6 +308,43 @@ pub async fn run_mcp_server() -> Result<()> {
             Ok(()) => eprintln!("Final telemetry sent."),
             Err(e) => eprintln!("Final telemetry failed: {e}"),
         }
+    }
+
+    Ok(())
+}
+
+fn build_mcp_tools() -> Result<Value> {
+    let mut tools: Value =
+        serde_json::from_str(TOOLS_JSON).context("failed parsing embedded tools.json")?;
+    inject_common_timeout_property(&mut tools)?;
+    Ok(tools)
+}
+
+fn inject_common_timeout_property(tools: &mut Value) -> Result<()> {
+    let entries = tools
+        .as_array_mut()
+        .context("embedded tools.json root must be an array")?;
+
+    for tool in entries {
+        let schema = tool
+            .get_mut("inputSchema")
+            .and_then(Value::as_object_mut)
+            .context("tool missing inputSchema object")?;
+        let properties = schema
+            .entry("properties")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .context("tool inputSchema.properties must be an object")?;
+        properties.insert(
+            "timeout_ms".to_string(),
+            json!({
+                "type": "integer",
+                "description": format!(
+                    "Abort this MCP tool call after this many milliseconds. Default: {}. Use 0 to disable the per-call timeout.",
+                    DEFAULT_TOOL_TIMEOUT_MS
+                )
+            }),
+        );
     }
 
     Ok(())
@@ -426,6 +485,23 @@ fn is_connection_error(msg: &str) -> bool {
         || lower.contains("tcp connect error")
         || lower.contains("broken pipe")
         || lower.contains("failed to connect cdp")
+}
+
+fn tool_call_timeout_ms(arguments: &Value) -> Result<u64> {
+    match arguments.get("timeout_ms") {
+        None => Ok(DEFAULT_TOOL_TIMEOUT_MS),
+        Some(value) => value
+            .as_u64()
+            .ok_or_else(|| anyhow!("`timeout_ms` must be a non-negative integer")),
+    }
+}
+
+fn timeout_for_tool_call(timeout_ms: u64) -> Option<Duration> {
+    if timeout_ms == 0 {
+        None
+    } else {
+        Some(Duration::from_millis(timeout_ms))
+    }
 }
 
 fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
@@ -904,6 +980,45 @@ fn map_tool_args(command: &str, arguments: &Value) -> Vec<String> {
         "observe" | "frames" | "tabs" | "close" | "back" | "forward" | "reload" | "activate"
         | "minimize" | "unlock" | "kill" | "install" => Vec::new(),
         _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tool_call_timeout_defaults_to_ninety_seconds() {
+        assert_eq!(
+            tool_call_timeout_ms(&json!({})).unwrap(),
+            DEFAULT_TOOL_TIMEOUT_MS
+        );
+    }
+
+    #[test]
+    fn tool_call_timeout_accepts_zero_as_disabled() {
+        assert_eq!(tool_call_timeout_ms(&json!({"timeout_ms": 0})).unwrap(), 0);
+        assert_eq!(timeout_for_tool_call(0), None);
+    }
+
+    #[test]
+    fn tool_call_timeout_rejects_invalid_values() {
+        assert!(tool_call_timeout_ms(&json!({"timeout_ms": -1})).is_err());
+        assert!(tool_call_timeout_ms(&json!({"timeout_ms": "fast"})).is_err());
+    }
+
+    #[test]
+    fn tools_list_includes_common_timeout_property() {
+        let tools = build_mcp_tools().unwrap();
+        let first_tool = tools.as_array().and_then(|v| v.first()).unwrap();
+        let timeout_prop = first_tool
+            .pointer("/inputSchema/properties/timeout_ms")
+            .and_then(Value::as_object)
+            .unwrap();
+        assert_eq!(
+            timeout_prop.get("type").and_then(Value::as_str),
+            Some("integer")
+        );
     }
 }
 

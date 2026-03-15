@@ -49,6 +49,8 @@ Control Chrome directly via the Chrome DevTools Protocol. Chrome auto-launches o
 
 **`block` patterns:** Block resource types (images, css, fonts, media, scripts) or URL substrings. Use `off` to disable.
 
+**MCP call timeout:** Every tool call has a default 90s timeout to prevent agents from spinning forever. Override with `timeout_ms`, or set `timeout_ms: 0` to disable the timeout for intentionally long-running calls like `console listen` or long `network capture`.
+
 **`viewport` presets:** mobile (375x667), iphone (390x844), ipad (820x1180), tablet (768x1024), desktop (1280x800). Or exact width and height.
 
 ## Tab Isolation
